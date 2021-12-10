@@ -1,7 +1,7 @@
 """Sets up the python path so notebooks can refer to project code.
 
 The first line of a notebook should be
-`import setpypath`
+`import projectpath`
 
 After this, any python modules in this project can be imported by their normal paths.
 
