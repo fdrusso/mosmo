@@ -27,6 +27,28 @@ class DbCrossRef:
 
 
 @dataclass
+class Variation:
+    """Describes the nature of a dimension of variation, as a choice among a list of named forms."""
+    name: str
+    form_names: List[str]
+
+
+@dataclass
+class Specialization:
+    """Specialization of the parent, or generalization of the child, identified by a set of form names.
+
+    Variation and Specialization extend the is_a relationship used in many ontologies, by adding addressability.
+    That is, we don't just declare that <child> is_a <parent>, but that <child> is _the_ [foo, bar] version of the
+    parent. As a practical example we may have an entity in our KB for glucose. But we know glucose can come in
+    D and L stereoisomers, and also that because of ring-chain tautamerism, a given molecule may be in the open-chain,
+    α, or β configurations. So, glucose is the parent concept, and β-D-glucose is the [β, D] version of glucose.
+    """
+    parent_id: str
+    form: List[str]
+    child_id: str
+
+
+@dataclass
 class KbObject:
     """Attributes common to first-class objects in the knowledge base."""
     _id: str
@@ -70,11 +92,39 @@ class Molecule(KbObject):
     inchi: Optional[str] = None
     """InChI string describing the structure (https://en.wikipedia.org/wiki/International_Chemical_Identifier)."""
 
+    variations: Optional[List[Variation]] = None
+    """Defines the ways in which molecules of this type may vary.
+    
+    Many molecules can vary in protonation state, conformation, modification at specific sites, etc. Each Variation
+    defines one such dimension of variation.
+    """
+
+    canonical_form: Optional[Specialization] = None
+    """Defines this molecule as a specific form (i.e. this is the child) of some canonical reference form."""
+
+    default_form: Optional[Specialization] = None
+    """For a general molecule, defines a more specific form (i.e. this is the parent) it is assumed to take.
+
+    As a specific example, we most often refer simply to ATP. But ATP technically has multiple protonation states, with
+    slightly different mass and different charge. For simplicity we continue to refer simply to ATP, but define that
+    its default form is ATP [4-].
+    """
+
     def __eq__(self, other):
         return type(self) == type(other) and self._id == other._id
 
     def __hash__(self):
         return hash((type(self), self._id))
+
+    def __repr__(self):
+        facts = [f"Molecule [{self.id}] {self.name}"]
+        if self.formula:
+            facts.append(f"formula: {self.formula}")
+        if self.mass:
+            facts.append(f"mass: {self.mass} Da")
+        if self.charge is not None:
+            facts.append(f"charge: {self.charge:+d}")
+        return "\n  ".join(facts)
 
 
 @dataclass

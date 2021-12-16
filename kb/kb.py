@@ -3,7 +3,7 @@ from typing import Optional
 
 import pymongo
 
-from scheme import DbCrossRef, Molecule
+from scheme import DbCrossRef, Molecule, Reaction, Specialization, Variation
 
 
 class Connection:
@@ -36,57 +36,87 @@ KB = Connection()
 # custom types, but it is not flexible enough to do this cleanly in our case. The main cost is we need to define the
 # schema relationships with explicit types, rather than having the system infer them. That is a reasonable constraint.
 
+class AsIsCodec:
+    """No-op codec passes everything through encode and decode as-is."""
+    def encode(self, obj):
+        return obj
+
+    def decode(self, data):
+        return data
+
 
 class ObjectCodec:
     """Encodes/decodes a python instance to a json-compatible dict."""
 
-    def __init__(self, clazz, codec_map=None):
+    def __init__(self, clazz, codec_map=None, selective=False):
         self.clazz = clazz
         self.codec_map = codec_map or {}
+        self.selective = selective
 
     def encode(self, obj):
         data = {}
         for k, v in obj.__dict__.items():
-            if v is not None:
-                if k in self.codec_map:
-                    data[k] = self.codec_map[k].encode(v)
-                else:
-                    data[k] = v
+            if v is not None and (not self.selective or k in self.codec_map):
+                data[k] = self.codec_map.get(k, AS_IS).encode(v)
         return data
 
     def decode(self, data):
         args = {}
         for k, v in data.items():
-            if k in self.codec_map:
-                args[k] = self.codec_map[k].decode(v)
-            else:
-                args[k] = v
+            if not self.selective or k in self.codec_map:
+                args[k] = self.codec_map.get(k, AS_IS).decode(v)
         return self.clazz(**args)
 
 
 class ListCodec:
     """Encodes/decodes a python iterable type to a json-compatible list."""
 
-    def __init__(self, list_type=list, item_codec=None):
+    def __init__(self, item_codec=None, list_type=list):
         self.list_type = list_type
-        self.item_codec = item_codec
+        self.item_codec = item_codec or AS_IS
 
     def encode(self, items):
-        if self.item_codec:
-            return list(self.item_codec.encode(item) for item in items)
-        else:
-            return list(items)
+        return list(self.item_codec.encode(item) for item in items)
 
     def decode(self, data):
-        if self.item_codec:
-            return self.list_type(self.item_codec.decode(datum) for datum in data)
-        else:
-            return self.list_type(data)
+        return self.list_type(self.item_codec.decode(datum) for datum in data)
 
+
+class MappingCodec:
+    """Encodes/decodes a python mapping type to a json list of tuples."""
+
+    def __init__(self, key_codec=None, value_codec=None, mapping_type=dict):
+        self.mapping_type = mapping_type
+        self.key_codec = key_codec or AS_IS
+        self.value_code = value_codec or AS_IS
+
+    def encode(self, mapping):
+        return [[self.key_codec.encode(k), self.value_code.encode(v)] for k, v in mapping.items()]
+
+    def decode(self, data):
+        return self.mapping_type({self.key_codec.decode(k): self.value_code.decode(v) for k, v in data})
+
+
+AS_IS = AsIsCodec()
 
 CODECS = {
-    Molecule: ObjectCodec(Molecule, {"aka": ListCodec(), "crossref": ListCodec(list, ObjectCodec(DbCrossRef))}),
+    DbCrossRef: ObjectCodec(DbCrossRef),
+    Variation: ObjectCodec(Variation),
+    Specialization: ObjectCodec(Specialization),
 }
+
+CODECS[Molecule] = ObjectCodec(Molecule, {
+    "crossref": ListCodec(item_codec=CODECS[DbCrossRef]),
+    "variations": CODECS[Variation],
+    "canonical_form": CODECS[Specialization],
+    "default_form": CODECS[Specialization],
+})
+
+CODECS[Reaction] = ObjectCodec(Reaction, {
+    "crossref": ListCodec(item_codec=CODECS[DbCrossRef]),
+    "stoichiometry": MappingCodec(key_codec=ObjectCodec(Molecule, {"_id": AS_IS, "name": AS_IS}, selective=True)),
+    "catalyst": ObjectCodec(Molecule, {"_id": AS_IS, "name": AS_IS}, selective=True),
+})
 
 
 def get_compound(compound_id) -> Optional[Molecule]:
