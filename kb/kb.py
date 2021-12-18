@@ -3,7 +3,7 @@ from typing import Optional
 
 import pymongo
 
-from scheme import DbCrossRef, Molecule, Reaction, Specialization, Variation
+from scheme import DbCrossRef, KbEntry, Molecule, Reaction, Specialization, Variation
 
 
 class Connection:
@@ -104,6 +104,10 @@ CODECS = {
     Variation: ObjectCodec(Variation),
     Specialization: ObjectCodec(Specialization),
 }
+
+CODECS[KbEntry] = ObjectCodec(KbEntry, {
+    "crossref": ListCodec(item_codec=CODECS[DbCrossRef])
+})
 
 CODECS[Molecule] = ObjectCodec(Molecule, {
     "crossref": ListCodec(item_codec=CODECS[DbCrossRef]),
