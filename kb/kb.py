@@ -1,15 +1,15 @@
 """Knowledge Base for Molecular Systems Modeling."""
-from typing import Optional
+from typing import Callable, Iterable, Optional
 
 import pymongo
 
-from scheme import DbCrossRef, KbEntry, Molecule, Reaction, Specialization, Variation
+from scheme import DbXref, KbEntry, Molecule, Reaction, Specialization, Variation
 
 
 class Connection:
     """Manages the connection to the MongoDB storage layer."""
 
-    def __init__(self, uri: str = "mongodb://127.0.0.1:27017"):
+    def __init__(self, uri: str = "mongodb://127.0.0.1:27017", db=None):
         self._uri = uri
         self._client = None
 
@@ -24,12 +24,9 @@ class Connection:
             self.connect()
         return self._client
 
-    @property
-    def compounds(self) -> pymongo.collection.Collection:
-        return self.client.kb.compounds
 
-
-KB = Connection()
+KB = Connection().client.db
+REFDB = Connection().client.ref
 
 
 # Defines the encoding/decoding schema for KB objects in the storage layer. PyMongo does have a mechanism to define
@@ -71,7 +68,7 @@ class ObjectCodec:
 class ListCodec:
     """Encodes/decodes a python iterable type to a json-compatible list."""
 
-    def __init__(self, item_codec=None, list_type=list):
+    def __init__(self, item_codec=None, list_type:Callable[[Iterable], Iterable]=list):
         self.list_type = list_type
         self.item_codec = item_codec or AS_IS
 
@@ -100,24 +97,24 @@ class MappingCodec:
 AS_IS = AsIsCodec()
 
 CODECS = {
-    DbCrossRef: ObjectCodec(DbCrossRef),
+    DbXref: ObjectCodec(DbXref),
     Variation: ObjectCodec(Variation),
     Specialization: ObjectCodec(Specialization),
 }
 
 CODECS[KbEntry] = ObjectCodec(KbEntry, {
-    "crossref": ListCodec(item_codec=CODECS[DbCrossRef])
+    "xrefs": ListCodec(item_codec=CODECS[DbXref], list_type=set),
 })
 
 CODECS[Molecule] = ObjectCodec(Molecule, {
-    "crossref": ListCodec(item_codec=CODECS[DbCrossRef]),
+    "xrefs": ListCodec(item_codec=CODECS[DbXref], list_type=set),
     "variations": CODECS[Variation],
     "canonical_form": CODECS[Specialization],
     "default_form": CODECS[Specialization],
 })
 
 CODECS[Reaction] = ObjectCodec(Reaction, {
-    "crossref": ListCodec(item_codec=CODECS[DbCrossRef]),
+    "xrefs": ListCodec(item_codec=CODECS[DbXref], list_type=set),
     "stoichiometry": MappingCodec(key_codec=ObjectCodec(Molecule, {"_id": AS_IS, "name": AS_IS}, selective=True)),
     "catalyst": ObjectCodec(Molecule, {"_id": AS_IS, "name": AS_IS}, selective=True),
 })

@@ -1,11 +1,11 @@
 """Core classes defining objects and concepts used to construct models of molecular systems."""
 
 from dataclasses import dataclass
-from typing import List, Mapping, Optional
+from typing import List, Mapping, Optional, Set
 
 
 @dataclass(eq=True, frozen=True)
-class DbCrossRef:
+class DbXref:
     """A cross-reference to (essentially) the same entry, item, or concept in an external database."""
     db: str
     """Short token identifying the referenced database."""
@@ -17,13 +17,13 @@ class DbCrossRef:
         return f"{self.db}:{self.id}"
 
     @staticmethod
-    def from_str(xref: str) -> "DbCrossRef":
-        """Parses a typically formatted DB:ID string into a DbCrossRef."""
+    def from_str(xref: str) -> "DbXref":
+        """Parses a typically formatted DB:ID string into a DbXref."""
         parts = xref.split(":", 2)
         if len(parts) == 2:
-            return DbCrossRef(*parts)
+            return DbXref(*parts)
         else:
-            return DbCrossRef("?", xref)
+            return DbXref("?", xref)
 
 
 @dataclass
@@ -67,7 +67,7 @@ class KbEntry:
     aka: Optional[List[str]] = None
     """Alternative names of the entry."""
 
-    crossref: Optional[List[DbCrossRef]] = None
+    xrefs: Optional[Set[DbXref]] = None
     """Cross-references to (essentially) the same entry in other databases."""
 
     def __eq__(self, other):
