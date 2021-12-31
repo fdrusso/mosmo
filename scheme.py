@@ -1,10 +1,10 @@
 """Core classes defining objects and concepts used to construct models of molecular systems."""
 
 from dataclasses import dataclass
-from typing import List, Mapping, Optional, Set
+from typing import List, Mapping, Optional, Set, Tuple
 
 
-@dataclass(eq=True, frozen=True)
+@dataclass(eq=True, order=True, frozen=True)
 class DbXref:
     """A cross-reference to (essentially) the same entry, item, or concept in an external database."""
     db: str
@@ -45,7 +45,7 @@ class Specialization:
     the parent concept, and β-D-glucose is the [D, β] version of glucose.
     """
     parent_id: str
-    form: List[str]
+    form: Tuple[str]
     child_id: str
 
 

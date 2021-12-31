@@ -25,7 +25,7 @@ class Connection:
         return self._client
 
 
-KB = Connection().client.db
+KB = Connection().client.kb
 REFDB = Connection().client.ref
 
 
@@ -98,8 +98,8 @@ AS_IS = AsIsCodec()
 
 CODECS = {
     DbXref: ObjectCodec(DbXref),
-    Variation: ObjectCodec(Variation),
-    Specialization: ObjectCodec(Specialization),
+    Variation: ObjectCodec(Variation, {'form_names': ListCodec()}),
+    Specialization: ObjectCodec(Specialization, {'form': ListCodec(list_type=tuple)}),
 }
 
 CODECS[KbEntry] = ObjectCodec(KbEntry, {
@@ -108,7 +108,7 @@ CODECS[KbEntry] = ObjectCodec(KbEntry, {
 
 CODECS[Molecule] = ObjectCodec(Molecule, {
     "xrefs": ListCodec(item_codec=CODECS[DbXref], list_type=set),
-    "variations": CODECS[Variation],
+    "variations": ListCodec(item_codec=CODECS[Variation]),
     "canonical_form": CODECS[Specialization],
     "default_form": CODECS[Specialization],
 })
