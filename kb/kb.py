@@ -1,5 +1,5 @@
 """Knowledge Base for Molecular Systems Modeling."""
-from typing import Callable, Iterable, Optional
+from typing import Callable, Iterable, List, Optional
 
 import pymongo
 
@@ -9,7 +9,7 @@ from scheme import DbXref, KbEntry, Molecule, Reaction, Specialization, Variatio
 class Connection:
     """Manages the connection to the MongoDB storage layer."""
 
-    def __init__(self, uri: str = "mongodb://127.0.0.1:27017", db=None):
+    def __init__(self, uri: str = 'mongodb://127.0.0.1:27017', db=None):
         self._uri = uri
         self._client = None
 
@@ -68,7 +68,7 @@ class ObjectCodec:
 class ListCodec:
     """Encodes/decodes a python iterable type to a json-compatible list."""
 
-    def __init__(self, item_codec=None, list_type:Callable[[Iterable], Iterable]=list):
+    def __init__(self, item_codec=None, list_type:Callable[[Iterable], Iterable] = list):
         self.list_type = list_type
         self.item_codec = item_codec or AS_IS
 
@@ -103,26 +103,82 @@ CODECS = {
 }
 
 CODECS[KbEntry] = ObjectCodec(KbEntry, {
-    "xrefs": ListCodec(item_codec=CODECS[DbXref], list_type=set),
+    'xrefs': ListCodec(item_codec=CODECS[DbXref], list_type=set),
 })
 
 CODECS[Molecule] = ObjectCodec(Molecule, {
-    "xrefs": ListCodec(item_codec=CODECS[DbXref], list_type=set),
-    "variations": ListCodec(item_codec=CODECS[Variation]),
-    "canonical_form": CODECS[Specialization],
-    "default_form": CODECS[Specialization],
+    'xrefs': ListCodec(item_codec=CODECS[DbXref], list_type=set),
+    'variations': ListCodec(item_codec=CODECS[Variation]),
+    'canonical_form': CODECS[Specialization],
+    'default_form': CODECS[Specialization],
 })
 
 CODECS[Reaction] = ObjectCodec(Reaction, {
-    "xrefs": ListCodec(item_codec=CODECS[DbXref], list_type=set),
-    "stoichiometry": MappingCodec(key_codec=ObjectCodec(Molecule, {"_id": AS_IS, "name": AS_IS}, selective=True)),
-    "catalyst": ObjectCodec(Molecule, {"_id": AS_IS, "name": AS_IS}, selective=True),
+    'xrefs': ListCodec(item_codec=CODECS[DbXref], list_type=set),
+    'stoichiometry': MappingCodec(key_codec=ObjectCodec(Molecule, {'_id': AS_IS, 'name': AS_IS}, selective=True)),
+    'catalyst': ObjectCodec(Molecule, {'_id': AS_IS, 'name': AS_IS}, selective=True),
 })
 
 
-def get_compound(compound_id) -> Optional[Molecule]:
-    doc = KB.compounds.find_one(compound_id)
+def _get(id, source, codec):
+    doc = source.find_one(id)
     if doc:
-        return CODECS[Molecule].decode(doc)
+        return codec.decode(doc)
     else:
         return None
+
+
+def _find(name, source, codec, include_aka=True):
+    found = set()
+    docs = []
+    for doc in source.find({'name': name}).collation({'locale': 'en', 'strength': 1}):
+        if doc['_id'] not in found:
+            docs.append(doc)
+            found.add(doc['_id'])
+    if include_aka:
+        for doc in source.find({'aka': name}).collation({'locale': 'en', 'strength': 1}):
+            if doc['_id'] not in found:
+                docs.append(doc)
+                found.add(doc['_id'])
+    return [codec.decode(doc) for doc in docs]
+
+
+def _xref(xref_id, xref_db, source, codec):
+    query = {'xrefs.id': xref_id}
+    if xref_db:
+        query['xrefs.db'] = xref_db
+
+    results = []
+    for doc in source.find(query).collation({'locale': 'en', 'strength': 1}):
+        results.append(codec.decode(doc))
+    return results
+
+
+def get_molecule(compound_id, source=KB.compounds) -> Optional[Molecule]:
+    """Retrieve a single molecule by ID."""
+    return _get(compound_id, source, CODECS[Molecule])
+
+
+def find_molecules(name, source=KB.compounds, include_aka=True) -> List[Molecule]:
+    """Retrieve molecules by name, or AKA. Matches case-insensitively on full name."""
+    return _find(name, source, CODECS[Molecule], include_aka)
+
+
+def xref_molecules(xref_id, xref_db=None, source=KB.compounds) -> List[Molecule]:
+    """Retrieve molecules by xref. Matches case-insensitively on ID, and optionally, db."""
+    return _xref(xref_id, xref_db, source, CODECS[Molecule])
+
+
+def get_reaction(compound_id, source=KB.compounds) -> Optional[Reaction]:
+    """Retrieve a single reaction by ID."""
+    return _get(compound_id, source, CODECS[Reaction])
+
+
+def find_reactions(name, source=KB.compounds, include_aka=True) -> List[Reaction]:
+    """Retrieve reactions by name, or AKA. Matches case-insensitively on full name."""
+    return _find(name, source, CODECS[Reaction], include_aka)
+
+
+def xref_reactions(xref_id, xref_db=None, source=KB.compounds) -> List[Reaction]:
+    """Retrieve reactions by xref. Matches case-insensitively on ID, and optionally, db."""
+    return _xref(xref_id, xref_db, source, CODECS[Reaction])
