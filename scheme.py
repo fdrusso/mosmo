@@ -148,3 +148,18 @@ class Reaction(KbEntry):
 
     def __hash__(self):
         return hash((type(self), self._id))
+
+@dataclass
+class Pathway(KbEntry):
+    """A process encompassing multiple Reactions and their Molecules."""
+    steps: Set[Reaction] = None
+
+    metabolites: Set[Molecule] = None
+
+    enzymes: Set[Molecule] = None
+
+    def __eq__(self, other):
+        return type(self) == type(other) and self._id == other._id
+
+    def __hash__(self):
+        return hash((type(self), self._id))

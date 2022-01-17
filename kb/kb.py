@@ -3,7 +3,7 @@ from typing import Callable, Iterable, List, Optional
 
 import pymongo
 
-from scheme import DbXref, KbEntry, Molecule, Reaction, Specialization, Variation
+from scheme import DbXref, KbEntry, Molecule, Reaction, Pathway, Specialization, Variation
 
 
 class Connection:
@@ -112,11 +112,20 @@ CODECS[Molecule] = ObjectCodec(Molecule, {
     'canonical_form': CODECS[Specialization],
     'default_form': CODECS[Specialization],
 })
+MOLSTUB = ObjectCodec(Molecule, {'_id': AS_IS, 'name': AS_IS}, selective=True)
 
 CODECS[Reaction] = ObjectCodec(Reaction, {
     'xrefs': ListCodec(item_codec=CODECS[DbXref], list_type=set),
-    'stoichiometry': MappingCodec(key_codec=ObjectCodec(Molecule, {'_id': AS_IS, 'name': AS_IS}, selective=True)),
-    'catalyst': ObjectCodec(Molecule, {'_id': AS_IS, 'name': AS_IS}, selective=True),
+    'stoichiometry': MappingCodec(key_codec=MOLSTUB),
+    'catalyst': MOLSTUB,
+})
+RXNSTUB = ObjectCodec(Reaction, {'_id': AS_IS, 'name': AS_IS}, selective=True)
+
+CODECS[Pathway] = ObjectCodec(Pathway, {
+    'xrefs': ListCodec(item_codec=CODECS[DbXref], list_type=set),
+    'steps': ListCodec(item_codec=RXNSTUB),
+    'metabolites': ListCodec(item_codec=MOLSTUB),
+    'enzymes': ListCodec(item_codec=MOLSTUB),
 })
 
 
@@ -169,16 +178,16 @@ def xref_molecules(xref_id, xref_db=None, source=KB.compounds) -> List[Molecule]
     return _xref(xref_id, xref_db, source, CODECS[Molecule])
 
 
-def get_reaction(compound_id, source=KB.compounds) -> Optional[Reaction]:
+def get_reaction(compound_id, source=KB.reactions) -> Optional[Reaction]:
     """Retrieve a single reaction by ID."""
     return _get(compound_id, source, CODECS[Reaction])
 
 
-def find_reactions(name, source=KB.compounds, include_aka=True) -> List[Reaction]:
+def find_reactions(name, source=KB.reactions, include_aka=True) -> List[Reaction]:
     """Retrieve reactions by name, or AKA. Matches case-insensitively on full name."""
     return _find(name, source, CODECS[Reaction], include_aka)
 
 
-def xref_reactions(xref_id, xref_db=None, source=KB.compounds) -> List[Reaction]:
+def xref_reactions(xref_id, xref_db=None, source=KB.reactions) -> List[Reaction]:
     """Retrieve reactions by xref. Matches case-insensitively on ID, and optionally, db."""
     return _xref(xref_id, xref_db, source, CODECS[Reaction])
