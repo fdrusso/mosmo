@@ -163,7 +163,7 @@ class LookupCodec(Codec):
         # TODO: Remove this when switchover is complete
         try:
             id = id['_id']
-        except AttributeError:
+        except (AttributeError, TypeError):
             # The expected case -- id was an id not a doc
             pass
         return self._source.get(self._dataset, id)
