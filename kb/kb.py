@@ -98,10 +98,16 @@ class ObjectIdCodec(Codec):
         self.clazz = clazz
 
     def encode(self, obj):
-        return {'_id': obj.id}
+        return obj.id
 
-    def decode(self, doc):
-        return self.clazz(doc['_id'])
+    def decode(self, id):
+        # TODO: Remove this when switchover is complete
+        try:
+            id = id['_id']
+        except (AttributeError, TypeError):
+            # The expected case -- id was an id not a doc
+            pass
+        return self.clazz(_id=id)
 
 
 MOLSTUB = ObjectIdCodec(Molecule)
@@ -217,6 +223,9 @@ class Session:
         """Persists the object to the KB, in the given dataset."""
         if not bypass_cache:
             self._cache[dataset][obj.id] = obj
+        else:
+            # Even when bypassing the cache, make sure the cache itself is not now stale.
+            self._cache[dataset].pop(obj.id, None)
 
         codec = dataset.codec or CODECS[dataset.content_type]
         doc = codec.encode(obj)
@@ -249,6 +258,13 @@ class Session:
         for doc in self.client[dataset.db][dataset.collection].find(query).collation({'locale': 'en', 'strength': 1}):
             results.append(self._cache_value(dataset, doc))
         return results
+
+    def clear_cache(self, *datasets):
+        """Clears cached objects for select datasets, or all datasets."""
+        if not datasets:
+            datasets = self.schema.keys()
+        for dataset in datasets:
+            self._cache[dataset].clear()
 
 
 def configure_kb(uri=None):
