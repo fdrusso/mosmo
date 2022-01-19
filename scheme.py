@@ -55,7 +55,7 @@ class KbEntry:
     _id: str
     """Immutable unique identifier."""
 
-    name: str
+    name: str = ''
     """Preferred name of the entry. Brief but descriptive, suitable for lists."""
 
     shorthand: Optional[str] = None
