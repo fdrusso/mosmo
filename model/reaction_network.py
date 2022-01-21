@@ -11,7 +11,7 @@ from typing import Any, Iterable, Iterator, Mapping, Optional, Tuple
 
 import numpy as np
 
-from scheme import Molecule, Reaction
+from model.core import Molecule, Reaction
 
 
 class ReactionNetwork:

@@ -10,8 +10,8 @@ import numpy as np
 import scipy.optimize
 from scipy.sparse import csr_matrix
 
-from reaction_network import ReactionNetwork
-from scheme import Molecule, Reaction
+from model.reaction_network import ReactionNetwork
+from model.core import Molecule, Reaction
 
 ArrayT = Union[np.ndarray, jnp.ndarray]
 
