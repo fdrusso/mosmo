@@ -27,29 +27,6 @@ class DbXref:
 
 
 @dataclass
-class Variation:
-    """Describes the nature of a dimension of variation, as a choice among a list of named forms."""
-    name: str
-    form_names: List[str]
-
-
-@dataclass
-class Specialization:
-    """Specialization of the parent, or generalization of the child, identified by a set of form names.
-
-    Variation and Specialization extend the is_a relationship used in many ontologies, by adding
-    addressability. That is, we don't just declare that <child> is_a <parent>, but that <child> is
-    _the_ [foo, bar] version of the parent. As a practical example we may have an entry in our KB for
-    glucose. We also know that glucose has D and L stereoisomers, and that because of ring-chain
-    tautamerism, a given molecule may be in the open-chain, α, or β configurations. So, glucose is
-    the parent concept, and β-D-glucose is the [D, β] version of glucose.
-    """
-    parent_id: str
-    form: Tuple[str]
-    child_id: str
-
-
-@dataclass
 class KbEntry:
     """Attributes common to first-class entities, items, or concepts in the knowledge base."""
     _id: str
@@ -82,13 +59,36 @@ class KbEntry:
 
 
 @dataclass
+class Variation:
+    """Describes the nature of a dimension of variation, as a choice among a list of named forms."""
+    name: str
+    form_names: List[str]
+
+
+@dataclass
+class Specialization:
+    """Specialization of the parent, or generalization of the child, identified by a set of form names.
+
+    Variation and Specialization extend the is_a relationship used in many ontologies, by adding
+    addressability. That is, we don't just declare that <child> is_a <parent>, but that <child> is
+    _the_ [foo, bar] form of the parent. As a practical example we may have an entry in our KB for
+    glucose. We also know that glucose has D and L stereoisomers, and that because of ring-chain
+    tautamerism, a given molecule may be in the open-chain, α, or β configurations. So, glucose is
+    the parent concept, and β-D-glucose is the [D, β] form of glucose.
+    """
+    parent_id: str
+    form: Tuple[str]
+    child_id: str
+
+
+@dataclass
 class Molecule(KbEntry):
     """A molecule or molecule-like entity that may participate in a molecular system."""
     formula: Optional[str] = None
     """Chemical formula of this molecule."""
 
     mass: Optional[float] = None
-    """Mass, in daltons of one molecule."""
+    """Mass of one molecule, in daltons (or of a mole, in grams)."""
 
     charge: Optional[int] = None
     """Electric charge of the molecule."""
@@ -148,6 +148,7 @@ class Reaction(KbEntry):
 
     def __hash__(self):
         return hash((type(self), self._id))
+
 
 @dataclass
 class Pathway(KbEntry):

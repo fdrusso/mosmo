@@ -1,11 +1,17 @@
 """General representation of a network of stoichiometric reactions.
 
-An idealized representation of a network of reactions, in which every reaction is all-or-nothing with strictly defined
-stoichiometry. The evolution of this network over time is determined by a stoichiometry matrix, with reactants as the
-rows and reactions as the columns. In almost all cases we can assume this matrix to be sparse. For real biochemical
-systems, the total number of nonzero values if closer to linear with the number of rows or columns than to the product
-of the two. Real reactions never involve more than a few reactants, so columns will likely never have more than a few
-nonzero values. But the opposite is not true, as reactants such as ATP or water may each participate in many reactions.
+An idealized representation of a network of reactions, in which every reaction is all-or-nothing,
+with strictly defined stoichiometry. The evolution of this network over time is determined by a
+stoichiometry matrix, with reactants as the rows and reactions as the columns.
+
+Some characteristics of typical reaction networks:
+- In almost all cases we can assume the stoichiometry matrix to be sparse.
+- For real biochemical systems, the total number of nonzero values if closer to linear with respect
+  to the number of rows or columns than to the product of the two.
+- Real reactions never involve more than a few reactants, so columns will likely never have more than
+  a few nonzero values.
+- The converse is not true: reactants such as ATP or water may each participate in many reactions, so
+  the corresponding rows may have many nonzero values.
 """
 from typing import Any, Iterable, Iterator, Mapping, Optional, Tuple
 
@@ -18,10 +24,10 @@ class ReactionNetwork:
     """General representation of a network of stoichiometric reactions.
 
     This class serves two main functions:
-    - Constructs a representation of the network as a (sparse) matrix of stoichiometry coefficients for each reactant
-      (row) in each reaction (column).
-    - Provides a mapping between the strictly numerically indexed rows and columns of this S matrix and the semantic
-      Molecules and Reactions they correspond to.
+    - Constructs a representation of the network as a (sparse) matrix of stoichiometry coefficients
+      for each reactant (row) in each reaction (column).
+    - Provides a mapping between the strictly numerically indexed rows and columns of this S matrix
+      and the semantic Molecules and Reactions they correspond to.
     """
 
     def __init__(self, reactions: Optional[Iterable[Reaction]] = None):
