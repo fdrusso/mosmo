@@ -6,7 +6,7 @@ stoichiometry matrix, with reactants as the rows and reactions as the columns.
 
 Some characteristics of typical reaction networks:
 - In almost all cases we can assume the stoichiometry matrix to be sparse.
-- For real biochemical systems, the total number of nonzero values if closer to linear with respect
+- For real biochemical systems, the total number of nonzero values is closer to linear with respect
   to the number of rows or columns than to the product of the two.
 - Real reactions never involve more than a few reactants, so columns will likely never have more than
   a few nonzero values.
@@ -86,6 +86,10 @@ class ReactionNetwork:
         for reaction in self._reactions:
             yield reaction
 
+    def reaction(self, i: int) -> Reaction:
+        """The reaction at index i."""
+        return self._reactions[i]
+
     def reaction_index(self, reaction: Reaction) -> Optional[int]:
         """The index of the reaction, or None if it is not part of the network."""
         return self._reaction_index.get(reaction, None)
@@ -102,6 +106,10 @@ class ReactionNetwork:
         """Iterates through reactants in their indexed order."""
         for reactant in self._reactants:
             yield reactant
+
+    def reactant(self, i: int) -> Molecule:
+        """The reactant at index i."""
+        return self._reactants[i]
 
     def reactant_index(self, reactant: Molecule) -> Optional[int]:
         """The index of the reactant, or None if it is not part of the network."""
