@@ -192,9 +192,9 @@ class VelocityObjective(Objective):
 @dataclass
 class FbaResult:
     """Reaction velocities and dm/dt for an FBA solution, with fitness metric."""
-    v0: ArrayT
-    velocities: ArrayT
-    dmdt: ArrayT
+    v0: np.ndarray
+    velocities: np.ndarray
+    dmdt: np.ndarray
     fit: float
 
 
@@ -291,8 +291,8 @@ class FbaGd:
         soln = scipy.optimize.minimize(fun=self._loss_jit, args=params, x0=v0, jac=self._loss_jac, **kw_args)
 
         dmdt = self.network.s_matrix @ soln.x
-        return FbaResult(v0=v0,
-                         velocities=soln.x,
-                         dmdt=dmdt,
+        return FbaResult(v0=np.asarray(v0),
+                         velocities=np.asarray(soln.x),
+                         dmdt=np.asarray(dmdt),
                          fit=sum(float(self.objectives[name].loss(soln.x, dmdt, None))
                                  for name in ['steady-state', 'irreversibility']))
