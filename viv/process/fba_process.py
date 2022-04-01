@@ -3,11 +3,9 @@ from typing import Iterable, Mapping, Optional, Union
 from vivarium.core.process import Process
 from vivarium.core.types import State, Update
 
-from kb import kb
+from model.core import Molecule, Reaction
 from model.reaction_network import ReactionNetwork
 from sim.fba_gd import FbaGd, ProductionObjective
-
-KB = kb.configure_kb()
 
 
 class FbaProcess(Process):
@@ -15,28 +13,18 @@ class FbaProcess(Process):
 
     def __init__(
             self,
-            pathways: Iterable[str],
-            reactions: Iterable[str],
-            boundaries: Mapping[str, Optional[float]],
+            reactions: Iterable[Reaction],
+            boundaries: Mapping[Molecule, Optional[float]],
             gain: float = 0.5):
         super().__init__()
 
+        self.network = ReactionNetwork(reactions)
         self.gain = gain
-
-        # Build up a non-redundant set of reactions to include in the network.
-        steps = set()
-        for pathway_id in (pathways or []):
-            pathway = KB.get(KB.pathways, pathway_id)
-            steps.update(pathway.steps)
-        for reaction_id in (reactions or []):
-            steps.add(KB.get(KB.reactions, reaction_id))
-        self.network = ReactionNetwork(steps)
 
         # Resolve boundary metabolites and selected targets.
         self.boundaries = set()
         self.targets = {}
-        for met_id, target in boundaries.items():
-            met = KB.get(KB.compounds, met_id)
+        for met, target in boundaries.items():
             self.boundaries.add(met)
             if target is not None:
                 self.targets[met] = target

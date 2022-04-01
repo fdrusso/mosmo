@@ -1,19 +1,17 @@
-from typing import Mapping, Optional, Union
+from typing import Mapping, Union
 
 from vivarium.core.process import Process, Step
 from vivarium.core.types import State, Update
 
-from kb import kb
-
-KB = kb.configure_kb()
+from model.core import Molecule
 
 
 class Clamp(Step):
     """A Vivarium Process that clamps one or more metabolite pools at set values."""
 
-    def __init__(self, targets: Mapping[str, float]):
+    def __init__(self, targets: Mapping[Molecule, float]):
         super().__init__()
-        self.targets = {KB.get(KB.compounds, met_id): target for met_id, target in targets.items()}
+        self.targets = targets
 
     def ports_schema(self):
         return {
@@ -34,9 +32,9 @@ class Clamp(Step):
 class Drain(Process):
     """A Vivarium Process that depletes one or more metabolite pools at set rates, subject to availability."""
 
-    def __init__(self, rates: Mapping[str, float], back_off: float = 0.5):
+    def __init__(self, rates: Mapping[Molecule, float], back_off: float = 0.5):
         super().__init__()
-        self.rates = {KB.get(KB.compounds, met_id): rate for met_id, rate in rates.items()}
+        self.rates = rates
         self.back_off = back_off
 
     def ports_schema(self):
