@@ -16,30 +16,19 @@ class SimpleModel(Composer):
 
     def generate_processes(self, config: dict) -> Processes:
         processes = {}
-        boundaries = {}
+        boundaries = set()
         if 'clamp' in config:
+            boundaries.update(met for met in config['clamp']['targets'])
             processes['clamp'] = Clamp(**config['clamp'])
-            boundaries.update({met: None for met in config['clamp']['targets']})
         if 'drain' in config:
+            boundaries.update(met for met in config['drain']['rates'])
             processes['drain'] = Drain(**config['drain'])
-            boundaries.update({met: None for met in config['drain']['rates']})
-
-        if 'drivers' in config:
-            # May override existing met: None boundaries with target values
-            for met, target in config['drivers'].items():
-                boundaries[met] = target
-
-        processes['process'] = FbaProcess(
-            reactions=config.get('reactions'),
-            boundaries=boundaries,
-            gain=config.get('gain'),
-        )
-
+        processes['fba_process'] = FbaProcess({**config['fba_process'], 'boundaries': boundaries})
         return processes
 
     def generate_topology(self, config: dict):
         return {
-            'process': {
+            'fba_process': {
                 'metabolites': ('metabolites',),
                 'fluxes': ('fluxes',),
             },
@@ -55,6 +44,7 @@ class SimpleModel(Composer):
 def main():
     glycolysis = KB.get(KB.pathways, ObjectId("61e21657e4819e9d1a81f65f"))
     reactions = glycolysis.steps + [KB.get(KB.reactions, 'pts.glc')]
+    acCoA = KB.get(KB.compounds, 'accoa')
 
     # Concentrations in mM, from http://book.bionumbers.org/what-are-the-concentrations-of-free-metabolites-in-cells
     concs = {KB.get(KB.compounds, met_id): conc for met_id, conc in {
@@ -71,37 +61,40 @@ def main():
         'pi': 10.,
         'Glc.D.ext': 10.0,
     }.items()}
-    acCoA = KB.get(KB.compounds, 'accoa')
 
     config = {
-        'reactions': reactions,
-        'drivers': {
-            acCoA: concs[acCoA],
+        'fba_process': {
+            'reactions': reactions,
+            'drivers': {
+                acCoA: concs[acCoA],
+            },
         },
         'clamp': {
-            'targets': {met: conc for met, conc in concs.items() if met != acCoA}
+            'targets': {
+                met: conc for met, conc in concs.items() if met != acCoA
+            }
         },
         'drain': {
             'rates': {
                 acCoA: concs[acCoA] * 0.05,
             }
         },
-        'gain': 0.5,
     }
     composer = SimpleModel(config)
     composite = composer.generate()
 
+    # Build and run the engine
     sim = Engine(composite=composite,
-                 initial_state={met.id: conc for met, conc in concs.items()},
-                 )
-
-    # run the engine
+                 initial_state={
+                     'metabolites': {
+                         met.id: conc for met, conc in concs.items()
+                     }
+                 })
     total_time = 10
     sim.update(total_time)
 
     # get the data
     data = sim.emitter.get_data()
-
     print(pf(data))
 
 
