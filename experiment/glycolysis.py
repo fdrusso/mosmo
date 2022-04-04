@@ -4,8 +4,8 @@ from vivarium.core.engine import Engine, pf
 from vivarium.core.types import Processes
 
 from kb import kb
-from viv.process.fba_process import FbaProcess
-from viv.process.util import Clamp, Drain
+from process.fba_process import FbaProcess
+from process.util import Clamp, Drain
 
 KB = kb.configure_kb()
 
