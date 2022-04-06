@@ -1,4 +1,3 @@
-from bson import ObjectId
 from vivarium.core.composer import Composer
 from vivarium.core.engine import Engine, pf
 from vivarium.core.types import Processes
@@ -16,6 +15,8 @@ class MultiProcessModel(Composer):
 
     def generate_processes(self, config: dict) -> Processes:
         processes = {}
+
+        # Clamped and/or drained quantities are assumed to be boundaries for other processes.
         boundaries = {}
         if 'clamp' in config:
             processes['clamp'] = Clamp(**config['clamp'])
@@ -23,20 +24,27 @@ class MultiProcessModel(Composer):
         if 'drain' in config:
             processes['drain'] = Drain(**config['drain'])
             boundaries.update({met: None for met in config['drain']['rates']})
-        for fba_config in config.get('fba_process', []):
-            processes[fba_config['name']] = FbaProcess({**fba_config, 'boundaries': boundaries})
+
+        for process_config in config.get('fba_process', []):
+            # Combine global boundaries with process-specific boundaries, if any
+            process_boundaries = {*boundaries}
+            if 'boundaries' in process_config:
+                process_boundaries.update(process_config['boundaries'])
+            # Combined boundaries will override entry in process_confif if it is present.
+            processes[process_config['name']] = FbaProcess({**process_config, 'boundaries': process_boundaries})
 
         return processes
 
     def generate_topology(self, config: dict):
-        topology = {
-            'clamp': {
-                'metabolites': ('metabolites',),
-            },
-            'drain': {
+        topology = {}
+        if 'clamp' in config:
+            topology['clamp'] = {
                 'metabolites': ('metabolites',),
             }
-        }
+        if 'drain' in config:
+            topology['drain'] = {
+                'metabolites': ('metabolites',),
+            }
         for fba_config in config.get('fba_process', []):
             topology[fba_config['name']] = {
                 'metabolites': ('metabolites',),
@@ -45,41 +53,44 @@ class MultiProcessModel(Composer):
         return topology
 
 
-def main():
-    glycolysis = KB.get(KB.pathways, ObjectId("61e21657e4819e9d1a81f65f"))
-    ppp = KB.get(KB.pathways, ObjectId("61e21657e4819e9d1a81f660"))
-    tca = KB.get(KB.pathways, ObjectId("61e21657e4819e9d1a81f661"))
-    glx_shunt = KB.get(KB.pathways, ObjectId("61e21657e4819e9d1a81f65e"))
+# Concentrations in mM, from http://book.bionumbers.org/what-are-the-concentrations-of-free-metabolites-in-cells
+POOLS = {KB.get(KB.compounds, met_id): conc for met_id, conc in [
+    ('akg', 0.44),
+    ('accoa', 0.61),
+    ('adp', 0.55),
+    ('amp', 0.28),
+    ('atp', 9.6),
+    ('co2', 0.01),
+    ('coa', 1.4),
+    ('h+', 1e-7),
+    ('h2o', 55500),
+    ('nad.ox', 2.6),
+    ('nad.red', 0.083),
+    ('nadp.ox', 0.0021),
+    ('nadp.red', 0.12),
+    ('oaa', 0.1),  # no data
+    ('pep', 0.18),
+    ('pi', 10.),  # no data
+    ('pyr', 0.1),  # no data
+    ('q.ox', 0.01),  # no data
+    ('q.red', 0.01),  # no data
+    ('Glc.D.ext', 10.0),  # environment
+]}
 
+
+def build_config():
+    glycolysis = KB.find(KB.pathways, 'glycolysis')[0]
+    ppp = KB.find(KB.pathways, 'pentose phosphate')[0]
+    tca = KB.find(KB.pathways, 'tca')[0]
+    glx_shunt = KB.find(KB.pathways, 'glyoxylate shunt')[0]
+
+    pep = KB.get(KB.compounds, 'pep')
+    pyr = KB.get(KB.compounds, 'pyr')
     acCoA = KB.get(KB.compounds, 'accoa')
     akg = KB.get(KB.compounds, 'akg')
     oaa = KB.get(KB.compounds, 'oaa')
 
-    # Concentrations in mM, from http://book.bionumbers.org/what-are-the-concentrations-of-free-metabolites-in-cells
-    concs = {KB.get(KB.compounds, met_id): conc for met_id, conc in {
-        'akg': 0.44,
-        'accoa': 0.61,
-        'adp': 0.55,
-        'amp': 0.28,
-        'atp': 9.6,
-        'co2': 0.01,
-        'coa': 1.4,
-        'h+': 1e-7,
-        'h2o': 55500,
-        'nad.ox': 2.6,
-        'nad.red': 0.083,
-        'nadp.ox': 0.0021,
-        'nadp.red': 0.12,
-        'oaa': 0.1,  # no data
-        'pep': 0.18,
-        'pi': 10.,  # no data
-        'pyr': 0.1,  # no data
-        'q.ox': 0.01,  # no data
-        'q.red': 0.01,  # no data
-        'Glc.D.ext': 10.0,  # environment
-    }.items()}
-
-    config = {
+    return {
         'fba_process': [
             {
                 'name': 'Glycolysis+',
@@ -89,7 +100,9 @@ def main():
                     KB.get(KB.reactions, 'pts.glc'),
                 ],
                 'drivers': {
-                    acCoA: concs[acCoA],
+                    acCoA: POOLS[acCoA],
+                    pep: POOLS[pyr],
+                    pyr: POOLS[pyr],
                 },
             },
             {
@@ -103,26 +116,34 @@ def main():
                     KB.get(KB.reactions, 'ppck'),
                 ],
                 'drivers': {
-                    acCoA: concs[acCoA],
-                    akg: concs[akg],
-                    oaa: concs[oaa],
+                    akg: POOLS[akg],
+                    oaa: POOLS[oaa],
                 },
+                'boundaries': [
+                    pyr,
+                    pep,
+                    acCoA,
+                ],
                 'gain': 0.3,
             },
         ],
         'clamp': {
             'targets': {
-                met: conc for met, conc in concs.items() if met != acCoA
+                met: conc for met, conc in POOLS.items() if met not in (pyr, pep, acCoA, oaa, akg)
             }
         },
         'drain': {
             'rates': {
-                acCoA: concs[acCoA] * 0.01,
-                akg: concs[akg] * 0.03,
-                oaa: concs[oaa] * 0.02,
+                acCoA: POOLS[acCoA] * 0.01,
+                akg: POOLS[akg] * 0.03,
+                oaa: POOLS[oaa] * 0.02,
             }
         },
     }
+
+
+def main():
+    config = build_config()
     composer = MultiProcessModel(config)
     composite = composer.generate()
 
@@ -130,7 +151,7 @@ def main():
     sim = Engine(composite=composite,
                  initial_state={
                      'metabolites': {
-                         met.id: conc for met, conc in concs.items()
+                         met.id: conc for met, conc in POOLS.items()
                      }
                  })
     total_time = 10
