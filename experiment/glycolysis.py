@@ -1,4 +1,3 @@
-from bson import ObjectId
 from vivarium.core.composer import Composer
 from vivarium.core.engine import Engine, pf
 from vivarium.core.types import Processes
@@ -41,53 +40,56 @@ class SimpleModel(Composer):
         }
 
 
-def main():
-    glycolysis = KB.get(KB.pathways, ObjectId("61e21657e4819e9d1a81f65f"))
+POOLS = {KB.get(KB.compounds, met_id): conc for met_id, conc in [
+    ('accoa', 0.61),
+    ('adp', 0.55),
+    ('amp', 0.28),
+    ('atp', 9.6),
+    ('co2', 0.01),
+    ('coa', 1.4),
+    ('h+', 1e-7),
+    ('h2o', 55500),
+    ('nad.ox', 2.6),
+    ('nad.red', 0.083),
+    ('pi', 10.),  # no data
+    ('Glc.D.ext', 10.0),  # environment
+]}
+
+
+def build_config():
+    glycolysis = KB.find(KB.pathways, 'glycolysis')[0]
     reactions = glycolysis.steps + [KB.get(KB.reactions, 'pts.glc')]
     acCoA = KB.get(KB.compounds, 'accoa')
 
-    # Concentrations in mM, from http://book.bionumbers.org/what-are-the-concentrations-of-free-metabolites-in-cells
-    concs = {KB.get(KB.compounds, met_id): conc for met_id, conc in {
-        'accoa': 0.61,
-        'adp': 0.55,
-        'amp': 0.28,
-        'atp': 9.6,
-        'co2': 0.01,
-        'coa': 1.4,
-        'h+': 1e-7,
-        'h2o': 55500,
-        'nad.ox': 2.6,
-        'nad.red': 0.083,
-        'pi': 10.,
-        'Glc.D.ext': 10.0,
-    }.items()}
-
-    config = {
+    return {
         'fba_process': {
             'reactions': reactions,
             'drivers': {
-                acCoA: concs[acCoA],
+                acCoA: POOLS[acCoA],
             },
         },
         'clamp': {
             'targets': {
-                met: conc for met, conc in concs.items() if met != acCoA
+                met: conc for met, conc in POOLS.items() if met != acCoA
             }
         },
         'drain': {
             'rates': {
-                acCoA: concs[acCoA] * 0.05,
+                acCoA: POOLS[acCoA] * 0.05,
             }
         },
     }
-    composer = SimpleModel(config)
+
+
+def main():
+    composer = SimpleModel(build_config())
     composite = composer.generate()
 
     # Build and run the engine
     sim = Engine(composite=composite,
                  initial_state={
                      'metabolites': {
-                         met.id: conc for met, conc in concs.items()
+                         met.id: conc for met, conc in POOLS.items()
                      }
                  })
     total_time = 10
