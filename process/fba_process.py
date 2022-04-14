@@ -14,7 +14,9 @@ class FbaProcess(Process):
         'reactions': [],
         'drivers': {},
         'boundaries': [],
-        'gain': 0.5,
+        'pid_kp': 0.5,
+        'pid_ki': 0.0,
+        'pid_kd': 0.0,
     }
 
     def __init__(self, config):
@@ -24,7 +26,9 @@ class FbaProcess(Process):
         self.network = ReactionNetwork(self.parameters['reactions'])
         self.drivers = self.parameters['drivers']
         self.boundaries = set(self.parameters['boundaries']) | self.drivers.keys()  # Drivers are also boundaries.
-        self.gain = self.parameters['gain']
+        self.pid_kp = self.parameters['pid_kp']
+        self.pid_ki = self.parameters['pid_ki']
+        self.pid_kd = self.parameters['pid_kd']
 
         # Set up the FBA problem. Everything not declared as a driver or boundary is an intermediate.
         self.intermediates = [met for met in self.network.reactants() if met not in self.boundaries]
@@ -40,35 +44,46 @@ class FbaProcess(Process):
             'fluxes': {
                 rxn.id: {'_default': 0.0, '_updater': 'set', '_emit': True} for rxn in self.network.reactions()
             },
-        }
-
-    def production_targets(self, states):
-        """Calculates target production rates for all driver metabolites, based on current state."""
-        # TODO(fdrusso): All of this is preliminary logic. Expect it to evolve. A lot.
-        targets = {}
-        for met, target in self.drivers.items():
-            # Current and target values are concentrations, in mM.
-            current = states['metabolites'][met.id]
-            # Target rates depend on displacement, invariant to time_step, controlled by a gain parameter.
-            targets[met] = (target - current) * self.gain
-        return targets
-
-    def ports_update(self, dmdt, velocities, time_step):
-        return {
-            'metabolites': {
-                met.id: rate * time_step for met, rate in dmdt.items()
-            },
-            'fluxes': {rxn.id: velocity for rxn, velocity in velocities.items()},
+            'pid_data': {
+                'last': {met.id: {'_default': 0.0, '_updater': 'set', '_emit': False} for met in self.drivers},
+                'cum_error': {met.id: {'_default': 0.0, '_emit': False} for met in self.drivers},
+            }
+            # 'pid_last': {met.id: {'_default': 0.0, '_updater': 'set', '_emit': False} for met in self.drivers},
+            # 'pid_cum_error': {met.id: {'_default': 0.0, '_emit': False} for met in self.drivers},
         }
 
     def next_update(self, time_step: Union[float, int], states: State) -> Update:
-        # Update the FBA problem with target rates based on current boundary metabolite pools.
-        self.fba.update_params({'drivers': self.production_targets(states)})
+        # PID controller logic to calculate target production rates.
+        errors = {}
+        targets = {}
+        for met, target in self.drivers.items():
+            current = states['metabolites'][met.id]
+            delta = current - states['pid_data']['last'][met.id]
+            cum_error = states['pid_data']['cum_error'][met.id]
+            errors[met] = target - current
+            targets[met] = errors[met] * self.pid_kp + cum_error * self.pid_ki + delta * self.pid_kd
+
+        self.fba.update_params({'drivers': targets})
 
         # Solve the problem and return updates
         soln = self.fba.solve()
 
         # Report rates of change for boundary metabolites, and flux for all reactions.
-        dmdt = {met: soln.dmdt[self.network.reactant_index(met)] for met in self.boundaries}
-        velocities = self.network.reaction_values(soln.velocities)
-        return self.ports_update(dmdt, velocities, time_step)
+        dmdts = {}
+        for met, dmdt in self.network.reactant_values(soln.dmdt).items():
+            if met in self.boundaries:
+                dmdts[met.id] = dmdt
+        velocities = {}
+        for rxn, velocity in self.network.reaction_values(soln.velocities).items():
+            velocities[rxn.id] = velocity
+
+        return {
+            'metabolites': dmdts,
+            'fluxes': velocities,
+            'pid_data': {
+                'last': {met.id: states['metabolites'][met.id] for met in self.drivers},
+                'cum_error': {met.id: error for met, error in errors.items()}
+            }
+            # 'pid_last': {met.id: states['metabolites'][met.id] for met in self.drivers},
+            # 'pid_cum_error': {met.id: error for met, error in errors.items()},
+        }

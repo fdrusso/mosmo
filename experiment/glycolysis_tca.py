@@ -49,6 +49,7 @@ class MultiProcessModel(Composer):
             topology[fba_config['name']] = {
                 'metabolites': ('metabolites',),
                 'fluxes': ('fluxes',),
+                'pid_data': ('pid_data',),
             }
         return topology
 
@@ -101,9 +102,11 @@ def build_config():
                 ],
                 'drivers': {
                     acCoA: POOLS[acCoA],
-                    pep: POOLS[pyr],
+                    pep: POOLS[pep],
                     pyr: POOLS[pyr],
                 },
+                'pid_kp': 0.5,
+                'pid_ki': 0.1,
             },
             {
                 'name': 'TCA',
@@ -124,7 +127,8 @@ def build_config():
                     pep,
                     acCoA,
                 ],
-                'gain': 0.3,
+                'pid_kp': 0.5,
+                'pid_ki': 0.1,
             },
         ],
         'clamp': {

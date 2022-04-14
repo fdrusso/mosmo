@@ -30,6 +30,7 @@ class SimpleModel(Composer):
             'fba_process': {
                 'metabolites': ('metabolites',),
                 'fluxes': ('fluxes',),
+                'pid_data': ('pid_data',),
             },
             'clamp': {
                 'metabolites': ('metabolites',),
