@@ -189,6 +189,22 @@ class VelocityObjective(Objective):
         return shortfall + excess
 
 
+class ExclusionObjective(Objective):
+    """Incentivizes mutually exclusive fluxes within a set of reactions."""
+
+    def __init__(self,
+                 network: ReactionNetwork,
+                 reactions: Iterable[Reaction],
+                 aggfun: Callable[[ArrayT], float] = l2,
+                 weight: float = 1.0):
+        super().__init__(aggfun, weight)
+        self.network = network
+        self.indices = np.array([network.reaction_index(rxn) for rxn in reactions], dtype=np.int32)
+
+    def residual(self, velocities: ArrayT, dmdt: ArrayT, params=None) -> jnp.ndarray:
+        return jnp.prod(velocities[self.indices], keepdims=True)
+
+
 @dataclass
 class FbaResult:
     """Reaction velocities and dm/dt for an FBA solution, with fitness metric."""
@@ -230,8 +246,7 @@ class FbaGd:
                  network: ReactionNetwork,
                  intermediates: Iterable[Molecule],
                  objectives: Mapping[str, Objective],
-                 w_fitness: float = 1e4,
-                 w_sparsity: float = 1e-4):
+                 w_fitness: float = 1e4):
         """Defines the FBA problem to be solved.
 
         Args:
@@ -240,7 +255,6 @@ class FbaGd:
                 in any solution
             objectives: named components of the overall objective function to be optimized
             w_fitness: the relative weight of solution fitness terms (steady-state and irreversibility)
-            w_sparsity: the relative weight of the solution sparsity term
         """
         self.network = network
 
@@ -248,10 +262,6 @@ class FbaGd:
         self.objectives: Dict[str, Objective] = {
             'steady-state': SteadyStateObjective(network, intermediates, weight=w_fitness),
             'irreversibility': IrreversibilityObjective(network, weight=w_fitness),
-            'sparsity': VelocityObjective(network,
-                                          {r: 0 for r in network.reactions()},
-                                          aggfun=l_pt5,
-                                          weight=w_sparsity),
         }
 
         # Additional objectives are defined by the caller
