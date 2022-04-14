@@ -2,13 +2,12 @@
 import abc
 import time
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, Iterable, Mapping, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, Mapping, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 import scipy.optimize
-from scipy.sparse import csr_matrix
 
 from model.reaction_network import ReactionNetwork
 from model.core import Molecule, Reaction
@@ -16,44 +15,24 @@ from model.core import Molecule, Reaction
 ArrayT = Union[np.ndarray, jnp.ndarray]
 
 
-# Residual aggregation functions - all satisfy Callable[[ArrayT], float].
-
-def l_pt5(residual: ArrayT) -> float:
-    """Aggregates a residual vector into a scalar, as sum(sqrt(abs(x))); values contribute sub-linearly to total."""
-    return jnp.sum(jnp.sqrt(jnp.abs(residual)))
-
-
-def l1(residual: ArrayT) -> float:
-    """Aggregates a residual vector into a scalar, as sum(abs(x)); values contribute linearly to total."""
-    return jnp.sum(jnp.abs(residual))
-
-
-def l2(residual: ArrayT) -> float:
-    """Aggregates a residual vector into a scalar, as sum(square(x)); values contribute super-linearly to total."""
-    return jnp.sum(jnp.square(residual))
-
-
 class Objective(abc.ABC):
     """Superclass for components of a flux optimization objective.
 
     Individual Objectives can focus on any number of reaction velocities, dM/dt values, or both. The general pattern
     is that given specific velocity and dmdt vectors, an Objective produces a (constant length) vector of residual
-    values. These residuals are aggregated to a single weighted value, which contributes to the overall loss function
-    of the flux optimization problem.
+    values.
 
     Some but not all Objectives have adjustable parameters (e.g. target values or thresholds) that can be changed
     without altering the overall structure of the optimization problem.
     """
 
-    def __init__(self, aggfun: Callable[[ArrayT], float] = l2, weight: float = 1.0):
+    def __init__(self, weight: float = 1.0):
         """General init for any Objective.
 
         Args:
-            aggfun: the residual aggregation function, typically l_pt5, l1, or l2, but any Callable that fits the
-                signature will do
-            weight: the weight of this term in the overall objective function.
+            weight: the weight of this objective in the overall objective function. Note that weighting is applied
+                directly to the residual, and so is squared during least_squares optimization.
         """
-        self.aggfun = aggfun
         self.weight = weight
 
     def update_params(self, params: Any):
@@ -70,15 +49,14 @@ class Objective(abc.ABC):
         raise NotImplementedError()
 
     def loss(self, velocities: ArrayT, dmdt: ArrayT, params: Optional[ArrayT]) -> float:
-        return self.weight * self.aggfun(self.residual(velocities, dmdt, params))
+        return self.weight * self.residual(velocities, dmdt, params)
 
 
 class SteadyStateObjective(Objective):
     """Penalizes any non-zero dM/dt values for specified intermediates in the reaction network."""
 
-    def __init__(self, network: ReactionNetwork, intermediates: Iterable[Molecule],
-                 aggfun: Callable[[ArrayT], float] = l2, weight: float = 1.0):
-        super().__init__(aggfun, weight)
+    def __init__(self, network: ReactionNetwork, intermediates: Iterable[Molecule], weight: float = 1.0):
+        super().__init__(weight)
         self.network = network
         self.indices = np.array([network.reactant_index(m) for m in intermediates], dtype=np.int32)
 
@@ -90,8 +68,8 @@ class SteadyStateObjective(Objective):
 class IrreversibilityObjective(Objective):
     """Penalizes negative velocity values for irreversible reactions in the network."""
 
-    def __init__(self, network: ReactionNetwork, aggfun: Callable[[ArrayT], float] = l2, weight: float = 1.0):
-        super().__init__(aggfun, weight)
+    def __init__(self, network: ReactionNetwork, weight: float = 1.0):
+        super().__init__(weight)
         self.network = network
         self.indices = np.array([i for i, reaction in enumerate(network.reactions()) if not reaction.reversible],
                                 dtype=np.int32)
@@ -115,9 +93,8 @@ class ProductionObjective(Objective):
     def __init__(self,
                  network: ReactionNetwork,
                  targets: Mapping[Molecule, Union[float, Tuple[Optional[float], Optional[float]]]],
-                 aggfun: Callable[[ArrayT], float] = l2,
                  weight: float = 1.0):
-        super().__init__(aggfun, weight)
+        super().__init__(weight)
         self.network = network
         self.indices = np.array([network.reactant_index(met) for met in targets], dtype=np.int32)
         self.bounds = np.full((self.indices.shape[0], 2), [-np.inf, np.inf]).T
@@ -159,9 +136,8 @@ class VelocityObjective(Objective):
     def __init__(self,
                  network: ReactionNetwork,
                  targets: Mapping[Reaction, Union[float, Tuple[Optional[float], Optional[float]]]],
-                 aggfun: Callable[[ArrayT], float] = l2,
                  weight: float = 1.0):
-        super().__init__(aggfun, weight)
+        super().__init__(weight)
         self.network = network
         self.indices = np.array([network.reaction_index(rxn) for rxn in targets], dtype=np.int32)
         self.bounds = np.full((self.indices.shape[0], 2), [-np.inf, np.inf]).T
@@ -190,14 +166,13 @@ class VelocityObjective(Objective):
 
 
 class ExclusionObjective(Objective):
-    """Incentivizes mutually exclusive fluxes within a set of reactions."""
+    """Incentivizes mutually exclusive fluxes within a set of reactions, e.g. to avoid futile cycles."""
 
     def __init__(self,
                  network: ReactionNetwork,
                  reactions: Iterable[Reaction],
-                 aggfun: Callable[[ArrayT], float] = l2,
                  weight: float = 1.0):
-        super().__init__(aggfun, weight)
+        super().__init__(weight)
         self.network = network
         self.indices = np.array([network.reaction_index(rxn) for rxn in reactions], dtype=np.int32)
 
@@ -220,8 +195,7 @@ class FbaGd:
     The problem is specified via a set of Objective components, each constraining some aspect of the solution. All
     FBA problems include balancing reaction velocities such that network intermediates are at steady state, i.e.
     have a rate of change (dM/dt) of 0.  Any reactions defined as reversible=False should have non-negative velocity
-    in the solution. Finally, by default we include a sparsity term to minimize unnecessary flux, e.g. in so-called
-    'futile cycles'. Other objectives are provided by the caller, and may take any form that evaluates a potential
+    in the solution. Other objectives are provided by the caller, and may take any form that evaluates a potential
     solution in terms of velocities, dM/dt or both.
 
     For performance, this class uses a JAX jit-compiled function and jacobian, defining the problem structure and
@@ -246,7 +220,7 @@ class FbaGd:
                  network: ReactionNetwork,
                  intermediates: Iterable[Molecule],
                  objectives: Mapping[str, Objective],
-                 w_fitness: float = 1e4):
+                 w_fitness: float = 1e2):
         """Defines the FBA problem to be solved.
 
         Args:
@@ -268,13 +242,14 @@ class FbaGd:
         self.objectives.update(objectives)
 
         # The loss function takes objective params as explicit arguments so jax.jit will not fold them into constants
-        def loss(v, *params):
+        def residual(v, *params):
             dmdt = self.network.s_matrix @ v
-            return sum(objective.loss(v, dmdt, p) for objective, p in zip(self.objectives.values(), params))
+            return jnp.concatenate(
+                [objective.residual(v, dmdt, p) for objective, p in zip(self.objectives.values(), params)])
 
         # Cache the jitted loss and jacobian functions
-        self._loss_jit = jax.jit(loss)
-        self._loss_jac = jax.jit(jax.jacfwd(loss))
+        self._residual_jit = jax.jit(residual)
+        self._residual_jac = jax.jit(jax.jacfwd(residual))
 
     def update_params(self, updates):
         for name, params in updates.items():
@@ -287,7 +262,7 @@ class FbaGd:
             v0: a vector of velocities used as a starting point for optimization
             seed: random seed used to generate v0 if none is provided. Ignored if v0 is provided. If neither v0 nor
                 seed is provided, a suitable random seed is chosen.
-            kw_args: additional keyword args passed through to the underlying scipy.optimize.minimize()
+            kw_args: additional keyword args passed through to the underlying scipy.optimize.least_squares()
 
         Returns:
             FbaResult specifying the solution.
@@ -298,11 +273,13 @@ class FbaGd:
             v0 = jax.random.normal(seed, self.network.shape[1:])
 
         params = tuple(objective.params() for objective in self.objectives.values())
-        soln = scipy.optimize.minimize(fun=self._loss_jit, args=params, x0=v0, jac=self._loss_jac, **kw_args)
+        soln = scipy.optimize.least_squares(fun=self._residual_jit, args=params, x0=v0, jac=self._residual_jac,
+                                            **kw_args)
 
         dmdt = self.network.s_matrix @ soln.x
+        fit_residual = np.concatenate(
+            [self.objectives[name].residual(soln.x, dmdt, None) for name in ['steady-state', 'irreversibility']])
         return FbaResult(v0=v0,
                          velocities=soln.x,
                          dmdt=dmdt,
-                         fit=sum(float(self.objectives[name].loss(soln.x, dmdt, None))
-                                 for name in ['steady-state', 'irreversibility']))
+                         fit=float(np.sum(np.square(fit_residual))))
