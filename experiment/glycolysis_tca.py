@@ -100,6 +100,10 @@ def build_config():
                     *ppp.steps,
                     KB.get(KB.reactions, 'pts.glc'),
                 ],
+                'futile_cycles': [
+                    [KB.get(KB.reactions, 'pfk'), KB.get(KB.reactions, 'fbp')],
+                    [KB.get(KB.reactions, 'pyk'), KB.get(KB.reactions, 'pps')],
+                ],
                 'drivers': {
                     acCoA: POOLS[acCoA],
                     pep: POOLS[pep],

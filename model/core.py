@@ -121,14 +121,7 @@ class Molecule(KbEntry):
         return hash((type(self), self._id))
 
     def __repr__(self):
-        facts = [f"Molecule [{self.id}] {self.name}"]
-        if self.formula:
-            facts.append(f"formula: {self.formula}")
-        if self.mass:
-            facts.append(f"mass: {self.mass} Da")
-        if self.charge is not None:
-            facts.append(f"charge: {self.charge:+d}")
-        return "\n  ".join(facts)
+        return f"Molecule [{self.id}] {self.name}"
 
 
 @dataclass

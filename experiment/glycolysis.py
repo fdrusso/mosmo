@@ -65,9 +65,15 @@ def build_config():
     return {
         'fba_process': {
             'reactions': reactions,
+            'futile_cycles': [
+                [KB.get(KB.reactions, 'pfk'), KB.get(KB.reactions, 'fbp')],
+                [KB.get(KB.reactions, 'pyk'), KB.get(KB.reactions, 'pps')],
+            ],
             'drivers': {
                 acCoA: POOLS[acCoA],
             },
+            'pid_ki': .1,
+            # 'pid_kd': 0,
         },
         'clamp': {
             'targets': {

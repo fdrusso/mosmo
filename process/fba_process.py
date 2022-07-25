@@ -4,7 +4,7 @@ from vivarium.core.process import Process
 from vivarium.core.types import State, Update
 
 from model.reaction_network import ReactionNetwork
-from sim.fba_gd import FbaGd, ProductionObjective
+from sim.fba_gd import FbaGd, ProductionObjective, ExclusionObjective
 
 
 class FbaProcess(Process):
@@ -12,6 +12,7 @@ class FbaProcess(Process):
 
     defaults = {
         'reactions': [],
+        'futile_cycles': [],
         'drivers': {},
         'boundaries': [],
         'pid_kp': 0.5,
@@ -32,12 +33,16 @@ class FbaProcess(Process):
 
         # Set up the FBA problem. Everything not declared as a driver or boundary is an intermediate.
         self.intermediates = [met for met in self.network.reactants() if met not in self.boundaries]
-        self.fba = FbaGd(self.network, self.intermediates, {
+        objectives = {
             'drivers': ProductionObjective(self.network, {met: 0.0 for met, target in self.drivers.items()})
-        })
+        }
+        for i, cycle in enumerate(self.parameters['futile_cycles']):
+            objectives[f'futile-break-{i}'] = ExclusionObjective(self.network, cycle)
+        self.fba = FbaGd(self.network, self.intermediates, objectives)
 
     def ports_schema(self):
         return {
+            'metabolomics_data': {},
             'metabolites': {
                 met.id: {'_default': 0.0, '_emit': True} for met in self.boundaries
             },
@@ -45,11 +50,9 @@ class FbaProcess(Process):
                 rxn.id: {'_default': 0.0, '_updater': 'set', '_emit': True} for rxn in self.network.reactions()
             },
             'pid_data': {
-                'last': {met.id: {'_default': 0.0, '_updater': 'set', '_emit': False} for met in self.drivers},
+                'error': {met.id: {'_default': 0.0, '_updater': 'set', '_emit': False} for met in self.drivers},
                 'cum_error': {met.id: {'_default': 0.0, '_emit': False} for met in self.drivers},
             }
-            # 'pid_last': {met.id: {'_default': 0.0, '_updater': 'set', '_emit': False} for met in self.drivers},
-            # 'pid_cum_error': {met.id: {'_default': 0.0, '_emit': False} for met in self.drivers},
         }
 
     def next_update(self, time_step: Union[float, int], states: State) -> Update:
@@ -58,10 +61,12 @@ class FbaProcess(Process):
         targets = {}
         for met, target in self.drivers.items():
             current = states['metabolites'][met.id]
-            delta = current - states['pid_data']['last'][met.id]
-            cum_error = states['pid_data']['cum_error'][met.id]
-            errors[met] = target - current
-            targets[met] = errors[met] * self.pid_kp + cum_error * self.pid_ki + delta * self.pid_kd
+            error = target - current
+            delta = error - states['pid_data']['error'][met.id]
+            cum_error = states['pid_data']['cum_error'][met.id] + error
+
+            errors[met] = error
+            targets[met] = self.pid_kp * error + self.pid_ki * cum_error + self.pid_kd * delta
 
         self.fba.update_params({'drivers': targets})
 
@@ -81,9 +86,7 @@ class FbaProcess(Process):
             'metabolites': dmdts,
             'fluxes': velocities,
             'pid_data': {
-                'last': {met.id: states['metabolites'][met.id] for met in self.drivers},
-                'cum_error': {met.id: error for met, error in errors.items()}
+                'error': {met.id: error for met, error in errors.items()},  # set
+                'cum_error': {met.id: error for met, error in errors.items()}  # accumulate
             }
-            # 'pid_last': {met.id: states['metabolites'][met.id] for met in self.drivers},
-            # 'pid_cum_error': {met.id: error for met, error in errors.items()},
         }
