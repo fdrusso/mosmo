@@ -33,17 +33,17 @@ def sort_tableau(tableau, j):
 
 def generate_candidates(pending, j):
     """Yields candidate pairs of rows that may be combined validly into a new row that eliminates metabolite j."""
-    for i, (row_i, reversible_i, zeros_i) in enumerate(pending):
-        for row_m, reversible_m, zeros_m in pending[i + 1:]:
+    for i, (row_i, reversible_i, used_i) in enumerate(pending):
+        for row_m, reversible_m, used_m in pending[i + 1:]:
             # Put a reversible mode second if possible, so we can always multiply the first by a positive number
             if reversible_m:
-                yield row_i, row_m, reversible_i, zeros_i & zeros_m
+                yield row_i, row_m, reversible_i, used_i | used_m
             elif reversible_i:
-                yield row_m, row_i, False, zeros_i & zeros_m
+                yield row_m, row_i, False, used_i | used_m
 
             # Otherwise we can still combine them, if they have opposite stoichiometry
             elif row_i[j] * row_m[j] < 0:
-                yield row_i, row_m, False, zeros_i & zeros_m
+                yield row_i, row_m, False, used_i | used_m
 
 
 def merge_modes(row_i, row_m, reversible, j, num_rxns):
@@ -59,27 +59,26 @@ def merge_modes(row_i, row_m, reversible, j, num_rxns):
     row = scale_i * row_i + scale_m * row_m
     row = (row / np.gcd.reduce(row)).astype(int)
 
-    # Determine the actual new zeros set for the merged row.
-    zeros = set(np.nonzero(row[-num_rxns:] == 0)[0])
+    # Determine the actual new used set for the merged row.
+    used = set(np.nonzero(row[-num_rxns:])[0])
 
     # Mostly aesthetic, but prefer original reaction direction for reversible modes.
     if reversible:
-        involved = num_rxns - len(zeros)
-        forward = np.nonzero(row[-num_rxns:] > 0)[0].shape[0]
-        if forward * 2 < involved:
+        forward = np.nonzero(row[-num_rxns:] > 0)[0]
+        if len(forward) * 2 < len(used):
             row = -row
 
-    return row, reversible, zeros
+    return row, reversible, used
 
 
 def process_candidates(candidates, elementary, j, num_rxns):
     """Decide which pairs of candidate rows to merge, and generate a new tableau."""
     # Every candidate must be compared against all current elementary modes, based on the non-subset zeros test.
     # Successful candidates extend the list of elementary modes that later candidates must be compared to.
-    for row_i, row_m, reversible, zeros in candidates:
+    for row_i, row_m, reversible, used in candidates:
         passing = True
-        for _, _, other_zeros in elementary:
-            if zeros <= other_zeros:  # Subset or equal: the merged row would not be elementary.
+        for _, _, other_used in elementary:
+            if used >= other_used:  # Superset or equal: the merged row would not be elementary.
                 passing = False
                 break
 
@@ -105,14 +104,13 @@ def elementary_modes(s_matrix: np.ndarray, reversibility: Iterable[bool]) -> Tup
             reversible reactions.
     """
     # Internally we do not use an actual numpy matrix for the tableau, but rather a list of 1d rows with the same
-    # structure. Each row has associated reversibility, plus the set of indices of all reactions _not_ included in that
-    # mode, designated S(m_i) by Schuster et al.
+    # structure. Each row has associated reversibility, plus the set of indices of all reactions included in that
+    # mode. This is the complement of the set designated S(m_i) by Schuster et al.
     num_mets, num_rxns = s_matrix.shape
     modes = np.eye(num_rxns, dtype=int)
-    all_rxns = set(range(num_rxns))
     tableau = []
     for i, (reaction, mode, reversible) in enumerate(zip(s_matrix.astype(int).T, modes, reversibility)):
-        tableau.append((np.concatenate([reaction, mode]), reversible, all_rxns - {i}))
+        tableau.append((np.concatenate([reaction, mode]), reversible, {i}))
 
     for j in range(num_mets):
         elementary, pending = sort_tableau(tableau, j)
