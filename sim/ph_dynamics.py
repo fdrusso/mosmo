@@ -21,7 +21,7 @@ from typing import Iterable, Mapping, Sequence, Tuple
 import jax
 import jax.numpy as jnp
 import numpy as np
-import scipy
+from scipy import integrate, optimize
 
 # All modeled events involve dissociation of a proton (H+).
 PROTON = ('H', +1)
@@ -86,7 +86,7 @@ class PhBuffer:
         self.s_matrix[self.bases_idx, cols] = 1  # all dissociations produce the base
         self.s_matrix[0, cols] = 1  # all dissociations produce a proton
 
-    def state_vector(self, pH, concs):
+    def state_vector(self, concs, pH=7.0):
         values = [pow(10, -pH), 1, pow(10, pH - 14)]
         for mol in self.mols[3:]:
             values.append(concs.get(mol, 0))
@@ -102,39 +102,57 @@ class PhBuffer:
         vnet = vf - vb
         return self.s_matrix @ vnet
 
-    def titrate(self, pH, concs, **kwargs):
-        y0 = self.state_vector(pH, concs)
-
-        def project_state(x):
-            dissociations = self.s_matrix @ x
-            y = y0 + dissociations
-            return y.at[0].set(y0[0])
+    def equilibrium(self, concs, pH=7.0, **kwargs):
+        """Find equilibrium from a given set of starting concentrations."""
+        y0 = self.state_vector(concs, pH)
 
         def residual(x):
-            y = project_state(x)
+            """Deviation from steady state given a vector of net fluxes, x."""
+            y = y0 + self.s_matrix @ x
             dydt = self.dydt(y)
             return dydt
 
-        soln = scipy.optimize.least_squares(
+        soln = optimize.least_squares(
             fun=jax.jit(residual),
             jac=jax.jit(jax.jacfwd(residual)),
             x0=jnp.zeros(self.s_matrix.shape[1]),
             **kwargs
         )
+        y = y0 + self.s_matrix @ soln.x
+        return {m: v for m, v in zip(self.mols, np.asarray(y))}
 
-        result = {m: v for m, v in zip(self.mols, np.asarray(project_state(soln.x)))}
-        return result, soln
+    def titrate(self, concs, pH=7.0, **kwargs):
+        """Find equilibrium from a given set of starting concentrations, holding pH constant."""
+        y0 = self.state_vector(concs, pH)
 
-    def simulate(self, pH, concs, end, step=1e-7):
+        def residual(x):
+            """Deviation from steady state given a vector of net fluxes, x."""
+            # Hold pH constant by ignoring changes to [H+] itself.
+            y = y0 + (self.s_matrix @ x).at[0].set(0)
+            dydt = self.dydt(y)
+            return dydt
+
+        soln = optimize.least_squares(
+            fun=jax.jit(residual),
+            jac=jax.jit(jax.jacfwd(residual)),
+            x0=jnp.zeros(self.s_matrix.shape[1]),
+            **kwargs
+        )
+        y = y0 + (self.s_matrix @ jnp.asarray(soln.x)).at[0].set(0)
+        return {m: v for m, v in zip(self.mols, np.asarray(y))}
+
+    def simulate(self, concs, pH, end, step=1e-7, **kwargs):
+        """Generate a timecourse of the dynamics of protonation/deprotonation from a given starting point."""
         fn = jax.jit(self.dydt)
         jac = jax.jit(jax.jacfwd(self.dydt))
 
-        return scipy.integrate.solve_ivp(
+        return integrate.solve_ivp(
             fun=lambda _, y: fn(y),
             jac=lambda _, y: jac(y),
-            y0=self.state_vector(pH, concs),
+            y0=self.state_vector(concs, pH),
             t_span=(0, end),
             t_eval=np.linspace(0, end, int(end / step) + 1),
             method='BDF',
             first_step=1e-9,  # pH is fast
+            **kwargs
         )
