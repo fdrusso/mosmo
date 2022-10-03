@@ -124,8 +124,12 @@ class Ligands:
                            if mask_value})
         return values
 
-    def occupancy(self, state: ArrayT, constants: Optional[ArrayT] = None, default: float = 1.0) -> jnp.ndarray:
-        """Calculates occupancy across this Ligand set, given a state vector.
+    def tilde(self, state: ArrayT, constants: Optional[ArrayT] = None, default: float = 1.0) -> jnp.ndarray:
+        """Concentration relative to Km across this Ligand set, given a state vector.
+
+        Km is the ligand concentration where enzyme binding is half-saturated. This method expresses absolute ligand
+        concentrations relative to each Km, denoted in the Convenience Kinetics paper with a tilde over the
+        concentration vector. The actual degree of binding for ligand a is $\tilde{a} / (1 + \tilde{a}$.
 
         Args:
             state: a vector of state (i.e. concentration) values collinear with self.network.reactants().
@@ -209,22 +213,24 @@ class ConvenienceKinetics:
         kcats = self.kcats
 
         # $\tilde{a} = a_i / {km}^a_i for all i; \tilde{b} = b_j / {km}^b_j for all j$, padded with ones as necessary.
-        occupancy_s = self.substrates.occupancy(state, default=1)
-        occupancy_p = self.products.occupancy(state, default=1)
+        tilde_s = self.substrates.tilde(state, default=1)
+        tilde_p = self.products.tilde(state, default=1)
 
         # $k_{+}^{cat} \prod_i{\tilde{a}_i} + k_{-}^{cat} \prod_j{\tilde{b}_j}$.
-        numerator = kcats[:, 0] * jnp.prod(occupancy_s, axis=-1) + kcats[:, 1] * jnp.prod(occupancy_p, axis=-1)
+        numerator = kcats[:, 0] * jnp.prod(tilde_s, axis=-1) + kcats[:, 1] * jnp.prod(tilde_p, axis=-1)
 
         # $\prod_i{(1 + \tilde{a}_i)} + \prod_j{(1 + \tilde{b}_j)} - 1$
-        denominator = jnp.prod(occupancy_s * self.substrates.mask + 1, axis=-1) + jnp.prod(
-            occupancy_p * self.products.mask + 1, axis=-1) - 1
+        # tilde_y + mask = (1 + tilde_y) for real values, and 1 for padded values.
+        denominator = jnp.prod(tilde_s + self.substrates.mask, axis=-1) + jnp.prod(
+            tilde_p + self.products.mask, axis=-1) - 1
 
         # Activation: $\prod_i{\frac{a_i}{a_i + K^A_i} = \prod_i{\frac{a_i / K^A_i}{a_i / K^A_i + 1}$
-        occupancy_a = self.activators.occupancy(state, default=1)
-        activation = jnp.prod(occupancy_a / (occupancy_a * self.activators.mask + 1), axis=-1)
+        tilde_a = self.activators.tilde(state, default=1)
+        activation = jnp.prod(tilde_a / (tilde_a + self.activators.mask), axis=-1)
         # Inhibition: $\prod_i{\frac{K^I_i}{a_i + K^I_i} = \prod_i{\frac{1}{a_i / K^I_i + 1}$
-        occupancy_i = self.inhibitors.occupancy(state, default=0)
-        inhibition = jnp.prod(1 / (occupancy_i + 1), axis=-1)
+        # Since tilde_i is padded with zero already, we can use (tilde_i + 1) directly.
+        tilde_i = self.inhibitors.tilde(state, default=0)
+        inhibition = jnp.prod(1 / (tilde_i + 1), axis=-1)
 
         return enzyme_conc * activation * inhibition * numerator / denominator
 
