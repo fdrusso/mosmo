@@ -96,7 +96,7 @@ class ReactionNetwork:
 
     def reaction_vector(self, data: Mapping[Reaction, Any], default: Any = 0) -> np.ndarray:
         """Converts a dict of {reaction: value} to a 1D vector for numpy ops."""
-        return np.array([data.get(reaction, default) for reaction in self._reactions])
+        return np.array([data.get(reaction, default) for reaction in self._reactions], dtype=float)
 
     def reaction_values(self, values: Iterable[Any]) -> Mapping[Reaction, Any]:
         """Converts an array of values to a {reaction: value} dict."""
@@ -117,7 +117,7 @@ class ReactionNetwork:
 
     def reactant_vector(self, data: Mapping[str, Any], default: Any = 0) -> np.ndarray:
         """Converts a dict of {reactant: value} to a 1D vector for numpy ops."""
-        return np.array([data.get(reactant, default) for reactant in self._reactants])
+        return np.array([data.get(reactant, default) for reactant in self._reactants], dtype=float)
 
     def reactant_values(self, values: Iterable[Any]) -> Mapping[Molecule, Any]:
         """Converts an array of values to a {reactant: value} dict."""
