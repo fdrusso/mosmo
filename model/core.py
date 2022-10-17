@@ -7,8 +7,8 @@ from typing import List, Mapping, Optional, Set, Tuple
 @dataclass(eq=True, order=True, frozen=True)
 class DbXref:
     """A cross-reference to (essentially) the same entry, item, or concept in an external database."""
-    db: str
-    """Short token identifying the referenced database."""
+    db: Optional[str]
+    """Short token identifying the referenced database. `None` indicates an unknown or ambiguous xref."""
 
     id: str
     """The id of the corresponding entry in the referenced database."""
@@ -23,7 +23,7 @@ class DbXref:
         if len(parts) == 2:
             return DbXref(*parts)
         else:
-            return DbXref("?", xref)
+            return DbXref(None, xref)
 
 
 @dataclass

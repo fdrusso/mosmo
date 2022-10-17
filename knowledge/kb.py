@@ -1,6 +1,7 @@
 """Knowledge Base for Molecular Systems Modeling."""
 from dataclasses import dataclass
 from typing import Any, Dict, Mapping, Optional, Type
+import warnings
 
 import pymongo
 
@@ -24,16 +25,21 @@ class Session:
         self._uri = uri
         self._client: Optional[pymongo.MongoClient] = None
         self.schema: Dict[str, Dataset] = {}
+        self.canon: Dict[Type[KbEntry], Dataset] = {}
         self._cache: Dict[Dataset, Dict[Any, KbEntry]] = {}
 
         if schema:
             for name, dataset in schema.items():
                 self.define_dataset(name, dataset)
 
-    def define_dataset(self, name: str, dataset: Dataset):
+    def define_dataset(self, name: str, dataset: Dataset, canonical=False):
         """Adds a dataset to the schema of this session."""
         if name not in self.schema and name not in self.__dict__:
             self.schema[name] = dataset
+            if canonical:
+                if dataset.content_type in self.canon:
+                    warnings.warn(f"Redefining canonical datasource for {dataset.content_type}.")
+                self.canon[dataset.content_type] = dataset
 
             # The cache is not just to save round-trips to the datastore, but to maximize reuse of decoded instances.
             self._cache[dataset] = {}
@@ -111,6 +117,93 @@ class Session:
         for dataset in datasets:
             self._cache[dataset].clear()
 
+    def as_xref(self, q) -> DbXref:
+        """Attempts to coerce the query to a DbXref."""
+        if isinstance(q, DbXref):
+            return q
+        elif isinstance(q, str):
+            return DbXref.from_str(q)
+        else:
+            raise TypeError(f"{q} cannot be converted to DbXref.")
+
+    def deref(self, q) -> KbEntry:
+        """Retrieves the object referred to by a DbXref."""
+        xref = self.as_xref(q)
+        if xref.db in self.schema:
+            return self.get(self.schema[xref.db], xref.id)
+
+    def as_molecule(self, q) -> Optional[Molecule]:
+        """Attempts to coerce the query to a Molecule."""
+        if isinstance(q, Molecule):
+            return q
+        mol = self.deref(q)
+        if not mol and Molecule in self.canon and isinstance(q, str):
+            mol = self.get(self.canon[Molecule], q)
+        return mol
+
+    def as_reaction(self, q) -> Optional[Reaction]:
+        """Attempts to coerce the query to a Reaction."""
+        if isinstance(q, Reaction):
+            return q
+        rxn = self.deref(q)
+        if not rxn and Reaction in self.canon and isinstance(q, str):
+            rxn = self.get(self.canon[Reaction], q)
+        return rxn
+
+    def as_pathway(self, q) -> Optional[Pathway]:
+        """Attempts to coerce the query to a Pathway."""
+        if isinstance(q, Pathway):
+            return q
+        pw = self.deref(q)
+        if not pw and Pathway in self.canon and isinstance(q, str):
+            pw = self.get(self.canon[Pathway], q)
+        return pw
+
+    def __call__(self, q) -> Optional[KbEntry]:
+        """Convenience interface to the KB.
+
+        Attempts to do the right thing with a query to return a unique object as the caller intends. For unambiguous
+        queries this works well, e.g.:
+        - Fully specified DB:ID xref
+        - Unique ID of an object in a canonical dataset
+        - ID of an object in any dataset, provided it is unique across all datasets
+
+        This call will always return the first entry it finds, so if the conditions above do not hold, the result may
+        not be as expected. CALLER BEWARE.
+
+        This interface is provided to reduce friction in accessing KB entries interactively. Since multiple calls to the
+        underlying DB may be needed to resolve any query, this is unlikely to be the most efficient way to access large
+        numbers of objects. Consider using more specific methods as appropriate.
+
+        Args:
+            q: a KbEntry, DbXref, or string sufficient to identify a unique entry in the knowledge base.
+
+        Returns:
+            A single KbEntry identified by q, or None.
+        """
+        # Trivial exit
+        if isinstance(q, KbEntry):
+            return q
+
+        # Fully specified xref
+        entry = self.deref(q)
+        if entry:
+            return entry
+
+        # ID in a canonical dataset
+        for dataset in self.canon.values():
+            entry = self.get(dataset, q)
+            if entry:
+                return entry
+
+        # ID in a non-canonical dataset
+        for dataset in self.schema.values():
+            if self.canon.get(dataset.content_type) == dataset:
+                continue  # already tried
+            entry = self.get(dataset, q)
+            if entry:
+                return entry
+
 
 class LookupCodec(codecs.Codec):
     """Session-aware Codec encoding a KbEntry by its ID, and decoding by looking it up in a given dataset."""
@@ -140,16 +233,16 @@ def configure_kb(uri=None):
     })))
 
     # The KB proper - compiled, reconciled, integrated
-    session.define_dataset('compounds', Dataset('kb', 'compounds', Molecule))
+    session.define_dataset('compounds', Dataset('kb', 'compounds', Molecule), canonical=True)
     session.define_dataset('reactions', Dataset('kb', 'reactions', Reaction, codecs.ObjectCodec(Reaction, {
         'xrefs': codecs.ListCodec(item_codec=codecs.CODECS[DbXref], list_type=set),
         'stoichiometry': codecs.MappingCodec(key_codec=LookupCodec(session, session.compounds)),
         'catalyst': codecs.MOL_ID,
-    })))
+    })), canonical=True)
     session.define_dataset('pathways', Dataset('kb', 'pathways', Pathway, codecs.ObjectCodec(Pathway, {
         'xrefs': codecs.ListCodec(item_codec=codecs.CODECS[DbXref], list_type=set),
         'metabolites': codecs.ListCodec(item_codec=LookupCodec(session, session.compounds)),
         'steps': codecs.ListCodec(item_codec=LookupCodec(session, session.reactions)),
         'enzymes': codecs.ListCodec(item_codec=codecs.MOL_ID),
-    })))
+    })), canonical=True)
     return session
