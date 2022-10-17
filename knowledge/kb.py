@@ -4,7 +4,7 @@ from typing import Any, Dict, Mapping, Optional, Type
 
 import pymongo
 
-import kb.codecs as codecs
+import knowledge.codecs as codecs
 from model.core import DbXref, KbEntry, Molecule, Reaction, Pathway
 
 

@@ -2,7 +2,7 @@ from vivarium.core.composer import Composer
 from vivarium.core.engine import Engine, pf
 from vivarium.core.types import Processes
 
-from kb import kb
+from knowledge import kb
 from process.fba_process import FbaProcess
 from process.util import Clamp, Drain
 
