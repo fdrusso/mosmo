@@ -1,7 +1,6 @@
 """Knowledge Base for Molecular Systems Modeling."""
 from dataclasses import dataclass
-from typing import Any, Dict, Mapping, Optional, Type
-import warnings
+from typing import Any, Dict, List, Mapping, Optional, Type
 
 import pymongo
 
@@ -38,7 +37,7 @@ class Session:
             self.schema[name] = dataset
             if canonical:
                 if dataset.content_type in self.canon:
-                    warnings.warn(f"Redefining canonical datasource for {dataset.content_type}.")
+                    raise ValueError(f"Attempt to redefine canonical dataset for {dataset.content_type}.")
                 self.canon[dataset.content_type] = dataset
 
             # The cache is not just to save round-trips to the datastore, but to maximize reuse of decoded instances.
@@ -56,13 +55,13 @@ class Session:
             self._client = pymongo.MongoClient(self._uri)
         return self._client
 
-    def _cache_value(self, dataset: Dataset, doc):
+    def _cache_value(self, dataset: Dataset, doc) -> KbEntry:
         if doc['_id'] not in self._cache[dataset]:
             codec = dataset.codec or codecs.CODECS[dataset.content_type]
             self._cache[dataset][doc['_id']] = codec.decode(doc)
         return self._cache[dataset][doc['_id']]
 
-    def get(self, dataset, id):
+    def get(self, dataset: Dataset, id) -> Optional[KbEntry]:
         """Retrieves the specified entry from the KB by ID, if it exists."""
         if id not in self._cache[dataset]:
             doc = self.client[dataset.db][dataset.collection].find_one(id)
@@ -70,7 +69,7 @@ class Session:
                 self._cache_value(dataset, doc)
         return self._cache[dataset].get(id)
 
-    def put(self, dataset, obj, bypass_cache=False):
+    def put(self, dataset: Dataset, obj, bypass_cache=False):
         """Persists the object to the KB, in the given dataset."""
         if not bypass_cache:
             self._cache[dataset][obj.id] = obj
@@ -82,7 +81,7 @@ class Session:
         doc = codec.encode(obj)
         self.client[dataset.db][dataset.collection].replace_one({'_id': obj.id}, doc, upsert=True)
 
-    def find(self, dataset, name, include_aka=True):
+    def find(self, dataset: Dataset, name: str, include_aka=True) -> List[KbEntry]:
         """Finds any number of KB entries matching the given name, optionally as an AKA."""
         found = set()
         docs = []
@@ -99,11 +98,12 @@ class Session:
                     found.add(doc['_id'])
         return [self._cache_value(dataset, doc) for doc in docs]
 
-    def xref(self, dataset, xref_id, xref_db=None):
-        """Finds any number of KB entries cross-referenced to the given ID."""
-        query = {'xrefs.id': xref_id}
-        if xref_db:
-            query['xrefs.db'] = xref_db
+    def xref(self, dataset: Dataset, q) -> List[KbEntry]:
+        """Finds any number of entries in the dataset cross-referenced to the given query (DbXref or string)."""
+        xref = self.as_xref(q)
+        query = {'xrefs.id': xref.id}
+        if xref.db:
+            query['xrefs.db'] = xref.db
 
         results = []
         for doc in self.client[dataset.db][dataset.collection].find(query).collation({'locale': 'en', 'strength': 1}):
@@ -126,11 +126,13 @@ class Session:
         else:
             raise TypeError(f"{q} cannot be converted to DbXref.")
 
-    def deref(self, q) -> KbEntry:
-        """Retrieves the object referred to by a DbXref."""
+    def deref(self, q) -> Optional[KbEntry]:
+        """Retrieves the object referred to by a DbXref or its string representation."""
         xref = self.as_xref(q)
         if xref.db in self.schema:
             return self.get(self.schema[xref.db], xref.id)
+        else:
+            return None
 
     def as_molecule(self, q) -> Optional[Molecule]:
         """Attempts to coerce the query to a Molecule."""
@@ -162,9 +164,8 @@ class Session:
     def __call__(self, q) -> Optional[KbEntry]:
         """Convenience interface to the KB.
 
-        Attempts to do the right thing with a query to return a unique object as the caller intends. For unambiguous
-        queries this works well, e.g.:
-        - Fully specified DB:ID xref
+        Attempts to return a unique object as intended by the caller. For unambiguous queries this works well, e.g.:
+        - Fully specified DB:ID xref (as a DbXref or a string)
         - Unique ID of an object in a canonical dataset
         - ID of an object in any dataset, provided it is unique across all datasets
 
@@ -219,7 +220,7 @@ class LookupCodec(codecs.Codec):
 
 
 def configure_kb(uri=None):
-    """Returns a Session object configured to access all reference and KB datasets."""
+    """Returns a Session object configured to access all reference and canonical KB datasets."""
     session = Session(uri=uri)
 
     # Reference datasets (local copies of external sources)
