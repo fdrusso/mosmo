@@ -57,6 +57,11 @@ class KbEntry:
     def id(self):
         return self._id
 
+    @property
+    def label(self):
+        """Compact designator of the entry, e.g. for plot labels. Shorthand is preferred, otherwise ID."""
+        return self.shorthand or self._id
+
 
 @dataclass
 class Variation:
@@ -141,6 +146,21 @@ class Reaction(KbEntry):
 
     def __hash__(self):
         return hash((type(self), self._id))
+
+    @property
+    def formula(self):
+        """Human-readable compact summary of the reaction."""
+        def reactant_term(reactant: Molecule, count: float) -> str:
+            if count == 1:
+                return reactant.label
+            else:
+                return f'{count} {reactant.label}'
+
+        lhs = [reactant_term(reactant, -count) for reactant, count in self.stoichiometry.items() if count < 0]
+        rhs = [reactant_term(reactant, count) for reactant, count in self.stoichiometry.items() if count > 0]
+        arrow = ' <=> ' if self.reversible else ' => '
+
+        return ' + '.join(lhs) + arrow + ' + '.join(rhs)
 
 
 @dataclass
