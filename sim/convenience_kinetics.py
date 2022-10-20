@@ -244,7 +244,7 @@ class ConvenienceKinetics:
         tilde_p = self.products.tilde(state, kinetics.kms_p, padding=1)
 
         # $k_{+}^{cat} \prod_i{\tilde{a}_i} + k_{-}^{cat} \prod_j{\tilde{b}_j}$.
-        numerator = kinetics.kcats_f * jnp.prod(tilde_s, axis=-1) + kinetics.kcats_b * jnp.prod(tilde_p, axis=-1)
+        numerator = kinetics.kcats_f * jnp.prod(tilde_s, axis=-1) - kinetics.kcats_b * jnp.prod(tilde_p, axis=-1)
 
         # $\prod_i{(1 + \tilde{a}_i)} + \prod_j{(1 + \tilde{b}_j)} - 1$
         # tilde_y + mask = (1 + tilde_y) for real values, and 1 for padded values.
