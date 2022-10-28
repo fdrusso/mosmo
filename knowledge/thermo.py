@@ -1,12 +1,14 @@
 """Thermodynamics via equilibrator_api."""
-from typing import List, Optional
+from typing import List, Mapping, Optional
 
 import equilibrator_api
+import numpy as np
 
 from model.core import Molecule, Reaction
 
 
 class Thermodynamics:
+    """Adapter class to use equilibrator_api to find thermodynamic properties of Molecules and Reactions."""
     def __init__(self, p_h=7.3, p_mg=1.5, ionic_strength=0.25, temperature=298.15):
         self.cc = equilibrator_api.ComponentContribution()
         self.cc.p_h = equilibrator_api.Q_(p_h)
@@ -58,6 +60,21 @@ class Thermodynamics:
         cc_compound = self.cc_compound(molecule)
         return cc_compound.dissociation_constants
 
-    def reaction_delta_g(self, reaction: Reaction) -> float:
-        dg_r = self.cc.standard_dg_prime(self.cc_reaction(reaction))
-        return dg_r.value.m
+    def reaction_delta_g(self, reaction: Reaction, concs: Optional[Mapping[Molecule, float]] = None) -> float:
+        """Calculates ΔG° or ΔG for a reaction.
+        
+        Args:
+            reaction: the reaction
+            concs: Molar concentrations of reactants participating in the reaction
+
+        Returns:
+            If concs is None (the default), returns ΔG°. If concentrations are provided, returns ΔG = ΔG° + RT lnQ.
+        """
+        dg_r = self.cc.standard_dg_prime(self.cc_reaction(reaction)).value.m
+        if concs:
+            ln_q = sum(np.log(concs[reactant]) * count for reactant, count in reaction.stoichiometry.items())
+            return dg_r + self.cc.RT.m * ln_q
+        else:
+            # Technically this is the same as RT * sum(np.log(concs.get(reactant, 1)) * count), which is the formal
+            # definition of ΔG°. We just shortcut the computation.
+            return dg_r
