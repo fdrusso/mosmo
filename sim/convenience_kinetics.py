@@ -164,14 +164,21 @@ class ConvenienceKinetics:
 
     def __init__(self,
                  network: ReactionNetwork,
-                 kinetics: Mapping[Reaction, ReactionKinetics]):
+                 kinetics: Mapping[Reaction, ReactionKinetics],
+                 ignore: Optional[Iterable[Molecule]] = None):
         """Constructs a ConvenienceKinetics object.
 
         Args:
             network: The network of reactions and reactants being modeled.
             kinetics: Kinetic parameters for each Reaction in the network.
+            ignore: Molecules to ignore for the purpose of calculating kinetics. Typically this should include water and
+                protons, not because they are irrelevant, but because their effect on kinetics cannot be differentiated
+                under buffered aqueous reaction conditions.
         """
         self.network = network
+        self.ignore = set()
+        if ignore is not None:
+            self.ignore.update(ignore)
 
         # Substrates, products, activators, and inhibitors are represented by one Ligands set each.
         substrates = []
@@ -182,10 +189,11 @@ class ConvenienceKinetics:
             substrates.append([])
             products.append([])
             for reactant, count in reaction.stoichiometry.items():
-                if count < 0:
-                    substrates[-1].extend([reactant] * -count)
-                else:
-                    products[-1].extend([reactant] * count)
+                if reactant not in self.ignore:
+                    if count < 0:
+                        substrates[-1].extend([reactant] * -count)
+                    else:
+                        products[-1].extend([reactant] * count)
 
             reaction_kinetics = kinetics[reaction]
             activators.append(reaction_kinetics.ka.keys())
