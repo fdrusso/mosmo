@@ -29,7 +29,6 @@ from model.reaction_network import ReactionNetwork
 
 ArrayT = Union[np.ndarray, jnp.ndarray]
 R = 8.314463e-3  # or more precisely, exactly 8.31446261815324e-3 kilojoule per kelvin per mole
-RT = R * 298.15  # T = 298.15 K = 25 C
 
 
 class Ligands:
@@ -230,6 +229,48 @@ class ConvenienceKinetics:
             kas=self.activators.pack(kas, default=1e-7, padding=1),
             kis=self.inhibitors.pack(kis, default=1e5, padding=1))
 
+    def unpack(self, packed: Optional[PackedNetworkKinetics] = None) -> Mapping[Reaction, ReactionKinetics]:
+        """Converts PackedKinetics back to more easily accessible ReactionKinetics."""
+        packed = packed or self.kinetics
+        kms_s = self.substrates.unpack(packed.kms_s)
+        kms_p = self.products.unpack(packed.kms_p)
+        kas = self.activators.unpack(packed.kas)
+        kis = self.inhibitors.unpack(packed.kis)
+
+        kinetics = {}
+        for i, reaction in enumerate(self.network.reactions()):
+            kinetics[reaction] = ReactionKinetics(
+                reaction=reaction,
+                kcat_f=packed.kcats_f[i],
+                kcat_b=packed.kcats_b[i],
+                km=kms_s[i] | kms_p[i],
+                ka=kas[i],
+                ki=kis[i],
+            )
+        return kinetics
+
+    def adjust_kinetics(self, dgrs: ArrayT, kvs: ArrayT, temperature=298.15):
+        """Generates thermodynamically consistent kcats, given ΔG plus a velocity constant per reaction.
+
+        Based on the Haldane relationship, -ΔG/RT = ln(K) = ln(kcat+) - ln(kcat-) + sum(n ln(Km)).
+
+        Args:
+            dgrs: reaction ΔGs (kilojoule / mole, mM standard), array of shape (#rxns,).
+            kvs: array of velocity constants, with shape (#rxns,).
+            temperature: the temperature used in thermodynamic calculations. Defaults to 295.15 (25°C).
+        """
+        RT = R * temperature
+
+        # $ln(k_{cat}^{+}) - ln(k_{cat}^{-}) = -\frac{\Delta{G}_r}{RT} - \sum_i{(n_i ln({K_M}_i))}$
+        ln_km_s = jnp.log(self.kinetics.kms_s) * self.substrates.mask
+        ln_km_p = jnp.log(self.kinetics.kms_p) * self.products.mask
+        diffs = -dgrs / RT + jnp.sum(ln_km_s, axis=-1) - jnp.sum(ln_km_p, axis=-1)
+
+        # e^(kvs +/- diffs/2)
+        kcats = jnp.exp(kvs + diffs * jnp.array([[+0.5], [-0.5]]))
+        self.kinetics.kcats_f = kcats[0]
+        self.kinetics.kcats_b = kcats[1]
+
     def reaction_rates(self,
                        state: ArrayT,
                        enzyme_conc: ArrayT,
@@ -280,23 +321,3 @@ class ConvenienceKinetics:
             1d array of rates of change, collinear with network.reactants().
         """
         return self.network.s_matrix @ self.reaction_rates(state, enzyme_conc)
-
-
-def generate_kcats(kms_s: ArrayT, kms_p: ArrayT, kvs: ArrayT, dgrs: ArrayT) -> jnp.ndarray:
-    """Generates thermodynamically consistent forward and back kcats, given ΔG, Km's and a velocity constant.
-
-    Base on the Haldane relationship, -ΔG/RT = ln(K) = ln(kcat+) - ln(kcat-) + sum(n ln(Km)).
-
-    Args:
-        kms_s: array of substrate Km values (mM), with shape (#rxns, max(#substrates)), padded with ones.
-        kms_p: array of product Km values (mM), with shape (#rxns, max(#products)), padded with ones.
-        kvs: array of velocity constants, with shape (#rxns,)
-        dgrs: reaction ΔGs (kilojoule / mole, mM standard), array of shape (#rxns,).
-
-    Returns:
-        An array of shape (#rxns, 2), with forward and back kcats per reaction.
-    """
-    # $ln(k_{cat}^{+}) - ln(k_{cat}^{-}) = -\frac{\Delta{G}_r}{RT} - \sum_i{(n_i ln({K_M}_i))}$
-    diffs = -dgrs / RT + jnp.sum(jnp.log(kms_s), axis=-1) - jnp.sum(jnp.log(kms_p), axis=-1)
-    # e^(kvs +/- diffs/2)
-    return jnp.exp(kvs + diffs * jnp.array([[+0.5], [-0.5]])).T
