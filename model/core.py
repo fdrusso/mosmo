@@ -126,7 +126,7 @@ class Molecule(KbEntry):
         return hash((type(self), self._id))
 
     def __repr__(self):
-        return f"Molecule [{self.id}] {self.name}"
+        return f"[{self.id}] {self.name}"
 
 
 @dataclass
@@ -140,12 +140,6 @@ class Reaction(KbEntry):
 
     reversible: bool = True
     """Whether or not this reaction should be treated as reversible"""
-
-    def __eq__(self, other):
-        return type(self) == type(other) and self._id == other._id
-
-    def __hash__(self):
-        return hash((type(self), self._id))
 
     @property
     def formula(self):
@@ -161,6 +155,15 @@ class Reaction(KbEntry):
         arrow = ' <=> ' if self.reversible else ' => '
 
         return ' + '.join(lhs) + arrow + ' + '.join(rhs)
+
+    def __eq__(self, other):
+        return type(self) == type(other) and self._id == other._id
+
+    def __hash__(self):
+        return hash((type(self), self._id))
+
+    def __repr__(self):
+        return f"[{self.id}] {self.formula}"
 
 
 @dataclass
