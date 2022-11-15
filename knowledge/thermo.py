@@ -72,7 +72,7 @@ class Thermodynamics:
         """
         dg_r = self.cc.standard_dg_prime(self.cc_reaction(reaction)).value.m
         if concs:
-            ln_q = sum(np.log(concs[reactant]) * count for reactant, count in reaction.stoichiometry.items())
+            ln_q = sum(np.log(concs.get(reactant, 1)) * count for reactant, count in reaction.stoichiometry.items())
             return dg_r + self.cc.RT.m * ln_q
         else:
             # Technically this is the same as RT * sum(np.log(concs.get(reactant, 1)) * count), which is the formal
