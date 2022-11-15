@@ -139,12 +139,15 @@ class Ligands:
 @dataclass
 class ReactionKinetics:
     """Dataclass to hold kinetic parameters associated with an enzymatic Reaction."""
-    reaction: Reaction  # The reaction
     kcat_f: float  # kcat of the forward reaction
     kcat_b: float  # kcat of the reverse (back) reaction
     km: Mapping[Molecule, float]  # Km of each substrate and product with respect to the reaction
     ka: Mapping[Molecule, float]  # Binding constants of all activators
     ki: Mapping[Molecule, float]  # Binding constants of all inhibitors
+
+
+# Define an empty ReactionKinetics object for missing data.
+ReactionKinetics.NONE = ReactionKinetics(kcat_f=0., kcat_b=0., km={}, ka={}, ki={})
 
 
 @dataclass
@@ -194,7 +197,7 @@ class ConvenienceKinetics:
                     else:
                         products[-1].extend([reactant] * count)
 
-            reaction_kinetics = kinetics[reaction]
+            reaction_kinetics = kinetics.get(reaction, ReactionKinetics.NONE)
             activators.append(reaction_kinetics.ka.keys())
             inhibitors.append(reaction_kinetics.ki.keys())
 
@@ -214,7 +217,7 @@ class ConvenienceKinetics:
         kas = []
         kis = []
         for reaction in self.network.reactions():
-            reaction_kinetics = kinetics[reaction]
+            reaction_kinetics = kinetics.get(reaction, ReactionKinetics.NONE)
             kcats_f.append(reaction_kinetics.kcat_f)
             kcats_b.append(reaction_kinetics.kcat_b)
             kms.append(reaction_kinetics.km)
@@ -239,11 +242,14 @@ class ConvenienceKinetics:
 
         kinetics = {}
         for i, reaction in enumerate(self.network.reactions()):
+            # km=kms_s[i] | kms_p[i], but not supported in current version of python
+            km = {}
+            km.update(kms_s[i])
+            km.update(kms_p[i])
             kinetics[reaction] = ReactionKinetics(
-                reaction=reaction,
                 kcat_f=packed.kcats_f[i],
                 kcat_b=packed.kcats_b[i],
-                km=kms_s[i] | kms_p[i],
+                km=km,
                 ka=kas[i],
                 ki=kis[i],
             )
