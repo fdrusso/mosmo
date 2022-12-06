@@ -144,12 +144,10 @@ class Ligands:
             An array with shape (..., #reactions, width), depending on the shape of state. The last two axes align
             with this Ligands set's indices and mask.
         """
-        # These operations work equally well for arrays of any dimensionality. We put the reactant axis (-1) first to
-        # facilitate selection, then put the resulting structure back at the end to allow broadcasting. Appending
-        # `padding` at the end before indexing lets the index -1 map to the padded value.
-        _state = jnp.moveaxis(state, -1, 0)
-        _state = jnp.append(_state, jnp.full((1,) + state.shape[:-1], padding), axis=0)
-        return jnp.moveaxis(_state[self.indices], (0, 1), (-2, -1))
+        # These operations work equally well for arrays of any dimension. Appending `padding` before indexing lets
+        # the index -1 map to the padded value.
+        _state = jnp.append(state, jnp.full(state.shape[:-1] + (1,), padding), axis=-1)
+        return _state[..., self.indices]
 
 
 @dataclass
@@ -254,7 +252,7 @@ class ConvenienceKinetics:
         kis = self.inhibitors.unpack_values(kparms.kis)
 
         reaction_kinetics = {}
-        for reaction in self.network.reactions():
+        for i, reaction in enumerate(self.network.reactions()):
             # km=kms_s[i] | kms_p[i], but not supported in current version of python
             km = {}
             km.update(kms_s[i])
