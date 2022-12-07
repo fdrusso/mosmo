@@ -123,8 +123,7 @@ class Ligands:
             for j, ligand_index in enumerate(self.indices[i]):
                 if self.mask[i, j]:
                     row_values[self.network.reactant(ligand_index)] = packed_values[i, j]
-            if row_values:
-                values[reaction] = row_values
+            values[reaction] = row_values
         return values
 
     def map_state(self, state: ArrayT, padding: float = 1.0) -> jnp.ndarray:
@@ -255,14 +254,14 @@ class ConvenienceKinetics:
         for i, reaction in enumerate(self.network.reactions()):
             # km=kms_s[i] | kms_p[i], but not supported in current version of python
             km = {}
-            km.update(kms_s[i])
-            km.update(kms_p[i])
+            km.update(kms_s[reaction])
+            km.update(kms_p[reaction])
             reaction_kinetics[reaction] = ReactionKinetics(
                 kcat_f=kparms.kcats_f[i],
                 kcat_b=kparms.kcats_b[i],
                 km=km,
-                ka=kas[i],
-                ki=kis[i],
+                ka=kas[reaction],
+                ki=kis[reaction],
             )
         return reaction_kinetics
 
