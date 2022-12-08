@@ -18,8 +18,9 @@ This implementation uses pure JAX vector calculations, relying heavily on arrays
 consistency and parallelization we want all rows to be constant-width (not ragged). In general this means padding
 internal data structures with ones, so that multiplying across each row is unaffected.
 """
+from collections import defaultdict
 from dataclasses import dataclass
-from typing import Dict, Iterable, List, Mapping, Optional, Union
+from typing import Any, Dict, Iterable, Mapping, Optional, Union
 
 import jax.numpy as jnp
 import numpy as np
@@ -32,37 +33,32 @@ R = 8.314463e-3  # or more precisely, exactly 8.31446261815324e-3 kilojoule per 
 
 
 class Ligands:
-    """Facilitates calculating binding of designated ligands across a set of reactions.
+    """Maps a collection of molecules per reaction within a ReactionNetwork onto a constant-width array.
 
-    A central concept used by Convenience Kinetics is the concentrations of various sets of ligands (substrates,
-    products, activators, inhibitors) relative to their binding constants to the enzyme catalyzing each reaction. The
-    paper refers to this as 'normalized concentration', denoted $\tilde{a}$, and defined as $a_i / K^M_{a_i}$ for all i
-    in concentration vector a. Equations expressed with this notation are relatively compact and interpretable.
-
-    This implementation is optimized for uniform vectorized calculations across multiple reactions in a network. The
-    number of molecules in a given set can vary for each reaction, leading to a ragged array as the natural
-    representation. Here we use constant-width arrays for the molecules and their corresponding binding constants,
-    padding as appropriate so as not to affect the final result.
+    Conceptually, represents molecules in the same role (e.g. substrates or inhibitors) across all reactions in a given
+    network. Functionally, maps positions in an array layout to specific (reaction, molecule) pairs, to facilitate
+    uniform vectorized calculations. Since the number of molecules in a given role may vary from reaction to reaction,
+    we pad the array to constant width with a value that does not affect calculations (i.e. 0 for addition or 1 for
+    multiplication).
     """
 
     def __init__(self,
                  network: ReactionNetwork,
-                 ligand_lists: Iterable[Iterable[Molecule]]):
+                 reaction_ligands: Mapping[Reaction, Iterable[Molecule]]):
         """Initialize the Ligands set for multiple reactions.
 
         Args:
-            network: the reaction network being modeled. Manages mapping between Reaction and Molecule objects and
-                corresponding indices in packed arrays.
-            ligand_lists: One list of molecules per reaction in the network. If multiple instances of a molecule
+            network: the reaction network being modeled.
+            reaction_ligands: One list of molecules per reaction in the network. If multiple instances of a molecule
                 participate in the same reaction in the same role, that molecule is repeated as appropriate. The list
-                for any reaction may be empty.
+                for any reaction may be empty, or the reaction itself may be absent.
         """
         self.network = network
 
         ragged_indices = []
         width = 0
-        for ligand_list in ligand_lists:
-            indices = [network.reactant_index(ligand) for ligand in ligand_list]
+        for reaction in network.reactions():
+            indices = [network.reactant_index(ligand) for ligand in reaction_ligands.get(reaction, [])]
             ragged_indices.append(indices)
             width = max(width, len(indices))
 
@@ -78,72 +74,89 @@ class Ligands:
         self.indices = padded_indices
         self.mask = mask
 
-    def pack(self,
-             values: Iterable[Mapping[Molecule, float]],
-             default: float = 0.0,
-             padding: float = 0.0) -> np.ndarray:
-        """Packs binding constants (or any other values) into an array that aligns with this Ligands set.
+    def pack_values(self,
+             values: Mapping[Reaction, Mapping[Molecule, Any]],
+             default: Any = 0.0,
+             padding: Any = 0.0) -> jnp.ndarray:
+        """Packs values per (reaction, molecule) pair into an array that aligns with this Ligands set.
+
+        Intended for values that vary for a given molecule across reactions, such as Km. The values may be scalars or
+        arrays, depending on the structure of the intended calculations. All such values must have the same shape.
 
         Args:
             values: Values associated with each molecule for each reaction.
-            default: The default value for molecules missing from `values`.
+            default: The default for molecules that are validly part of the Ligands set, but missing from `values`.
             padding: The value used to pad the resulting array to constant width.
 
         Returns:
             An array with shape (#reactions, width) that aligns with indices and mask.
         """
-        packed_values = np.full(self.indices.shape, padding, dtype=float)
-        for i, (row_indices, row_values) in enumerate(zip(self.indices, values)):
-            for j, ligand_index in enumerate(row_indices):
+        packed_values = []
+        for i, reaction in enumerate(self.network.reactions()):
+            row_values = values.get(reaction, {})
+            row = []
+            for j, ligand_index in enumerate(self.indices[i]):
                 if self.mask[i, j]:
-                    packed_values[i, j] = row_values.get(self.network.reactant(ligand_index), default)
-        return packed_values
+                    row.append(row_values.get(self.network.reactant(ligand_index), default))
+                else:
+                    row.append(padding)
+            packed_values.append(row)
 
-    def unpack(self, packed_values: ArrayT) -> List[Dict[Molecule, float]]:
-        """Unpacks an array of values into a list of dicts indexed by molecule, one per reaction.
+        # Put the (reaction, reactant) axes at the end to support broadcasting. For scalar values this is a no-op.
+        return jnp.moveaxis(jnp.array(packed_values), (0, 1), (-2, -1))
+
+    def unpack_values(self, packed_values: ArrayT) -> Dict[Reaction, Dict[Molecule, Any]]:
+        """Unpacks an array of values into a structure indexed by reaction and  molecule.
 
         Args:
             packed_values: An array with shape (#reactions, width) that aligns with indices and mask
 
         Returns:
             Values associated with each molecule for each reaction. If a given molecule is repeated in the Ligands
-            set for a given reaction, only the last value for that molecule is kept.
+            set for a given reaction, only one value for that molecule is kept.
         """
-        values = []
-        for row_indices, row_mask, row in zip(self.indices, self.mask, packed_values):
-            values.append({self.network.reactant(ligand_index): value
-                           for ligand_index, mask_value, value in zip(row_indices, row_mask, row)
-                           if mask_value})
+        # Put the (reaction, reactant) axes at the front for indexing. For an array of scalar values this is a no-op.
+        _packed_values = jnp.moveaxis(packed_values, (-2, -1), (0, 1))
+        values = {}
+        for i, reaction in enumerate(self.network.reactions()):
+            row_values = {}
+            for j, ligand_index in enumerate(self.indices[i]):
+                if self.mask[i, j]:
+                    row_values[self.network.reactant(ligand_index)] = packed_values[i, j]
+            values[reaction] = row_values
         return values
 
-    def tilde(self, state: ArrayT, constants: ArrayT, padding: float = 1.0) -> jnp.ndarray:
-        """Concentration relative to Km across this Ligand set, given a state vector.
+    def map_state(self, state: ArrayT, padding: float = 1.0) -> jnp.ndarray:
+        """Maps a state vector into an array that aligns or broadcasts with others generated by this Ligands set.
 
-        Km is the ligand concentration where enzyme binding is half-saturated. This method expresses absolute ligand
-        concentrations relative to each Km, denoted in the Convenience Kinetics paper with a tilde over the
-        concentration vector. The actual degree of binding for ligand a is $\tilde{a} / (1 + \tilde{a}$.
+        Intended for values that are consistent for a molecule across all reaction, such as the current concentration.
+        This method works equally for a 1d state vector, or for an arbitrary array of state vectors, in order to support
+        efficient vectorized or ensemble calculations.
 
         Args:
-            state: a vector of state (i.e. concentration) values collinear with self.network.reactants().
-            constants: array with shape (#reactions, width) that aligns with indices and mask.
-            padding: The value used for all padded elements of the array.
+            state: A vector of state (i.e. concentration) values collinear with network reactants, or a vector of such
+                state vectors.
+            padding: The value used for all padded elements of the array, generally 1 for multiplication operations,
+                or 0 for addition.
 
         Returns:
-            An array of shape (#reactions, width), with values y / k for each state value y and constant k, padded
-            with the default as appropriate.
+            An array with shape (..., #reactions, width), depending on the shape of state. The last two axes align
+            with this Ligands set's indices and mask.
         """
-        # Appending [default] to the state vector means any index of -1 dereferences to the default value.
-        return jnp.append(state, padding)[self.indices] / constants
+        # These operations work equally well for arrays of any dimension. Appending `padding` before indexing lets
+        # the index -1 map to the padded value.
+        _state = jnp.append(state, jnp.full(state.shape[:-1] + (1,), padding), axis=-1)
+        return _state[..., self.indices]
 
 
 @dataclass
 class ReactionKinetics:
     """Dataclass to hold kinetic parameters associated with an enzymatic Reaction."""
-    kcat_f: float  # kcat of the forward reaction
-    kcat_b: float  # kcat of the reverse (back) reaction
-    km: Mapping[Molecule, float]  # Km of each substrate and product with respect to the reaction
-    ka: Mapping[Molecule, float]  # Binding constants of all activators
-    ki: Mapping[Molecule, float]  # Binding constants of all inhibitors
+    kcat_f: Any  # kcat(s) of the forward reaction
+    kcat_b: Any  # kcat(s) of the reverse (back) reaction
+    km: Mapping[Molecule, Any]  # Km(s) of each substrate and product with respect to the reaction
+    ka: Mapping[Molecule, Any]  # Binding constants of all activators
+    ki: Mapping[Molecule, Any]  # Binding constants of all inhibitors
 
 
 # Define an empty ReactionKinetics object for missing data.
@@ -166,14 +179,14 @@ class ConvenienceKinetics:
 
     def __init__(self,
                  network: ReactionNetwork,
-                 kinetics: Mapping[Reaction, ReactionKinetics],
+                 reaction_kinetics: Mapping[Reaction, ReactionKinetics],
                  ignore: Optional[Iterable[Molecule]] = None):
         """Constructs a ConvenienceKinetics object.
 
         Args:
             network: The network of reactions and reactants being modeled.
-            kinetics: Kinetic parameters for each Reaction in the network.
-            ignore: Molecules to ignore for the purpose of calculating kinetics. Typically this should include water and
+            reaction_kinetics: Kinetic parameters for each Reaction in the network.
+            ignore: Molecules to ignore for the purpose of calculating kinetics. Typically this includes e.g. water and
                 protons, not because they are irrelevant, but because their effect on kinetics cannot be differentiated
                 under buffered aqueous reaction conditions.
         """
@@ -183,77 +196,74 @@ class ConvenienceKinetics:
             self.ignore.update(ignore)
 
         # Substrates, products, activators, and inhibitors are represented by one Ligands set each.
-        substrates = []
-        products = []
-        activators = []
-        inhibitors = []
-        for reaction in network.reactions():
-            substrates.append([])
-            products.append([])
+        substrates = defaultdict(list)
+        products = defaultdict(list)
+        activators = defaultdict(list)
+        inhibitors = defaultdict(list)
+        for reaction, kinetics in reaction_kinetics.items():
             for reactant, count in reaction.stoichiometry.items():
                 if reactant not in self.ignore:
                     if count < 0:
-                        substrates[-1].extend([reactant] * -count)
+                        substrates[reaction].extend([reactant] * -count)
                     else:
-                        products[-1].extend([reactant] * count)
+                        products[reaction].extend([reactant] * count)
 
-            reaction_kinetics = kinetics.get(reaction, ReactionKinetics.NONE)
-            activators.append(reaction_kinetics.ka.keys())
-            inhibitors.append(reaction_kinetics.ki.keys())
+            activators[reaction].extend(kinetics.ka.keys())
+            inhibitors[reaction].extend(kinetics.ki.keys())
 
         self.substrates = Ligands(network, substrates)
         self.products = Ligands(network, products)
         self.activators = Ligands(network, activators)
         self.inhibitors = Ligands(network, inhibitors)
 
-        # Cache calculation-ready arrays of kinetic constants.
-        self.kinetics = self.pack(kinetics)
+        # Cache calculation-ready arrays of kinetic parameters.
+        self.kparms = self.pack_kinetics(reaction_kinetics)
 
-    def pack(self, kinetics: Mapping[Reaction, ReactionKinetics]) -> PackedNetworkKinetics:
+    def pack_kinetics(self, reaction_kinetics: Mapping[Reaction, ReactionKinetics]) -> PackedNetworkKinetics:
         """Generates calculation-ready arrays of kinetic constants from ReactionKinetics per Reaction."""
         kcats_f = []
         kcats_b = []
-        kms = []
-        kas = []
-        kis = []
+        kms = {}
+        kas = {}
+        kis = {}
         for reaction in self.network.reactions():
-            reaction_kinetics = kinetics.get(reaction, ReactionKinetics.NONE)
-            kcats_f.append(reaction_kinetics.kcat_f)
-            kcats_b.append(reaction_kinetics.kcat_b)
-            kms.append(reaction_kinetics.km)
-            kas.append(reaction_kinetics.ka)
-            kis.append(reaction_kinetics.ki)
+            kinetics = reaction_kinetics.get(reaction, ReactionKinetics.NONE)
+            kcats_f.append(kinetics.kcat_f)
+            kcats_b.append(kinetics.kcat_b)
+            kms[reaction] = kinetics.km
+            kas[reaction] = kinetics.ka
+            kis[reaction] = kinetics.ki
 
         return PackedNetworkKinetics(
             kcats_f=np.array(kcats_f, dtype=float),
             kcats_b=np.array(kcats_b, dtype=float),
-            kms_s=self.substrates.pack(kms, default=0.1, padding=1),
-            kms_p=self.products.pack(kms, default=0.1, padding=1),
-            kas=self.activators.pack(kas, default=1e-7, padding=1),
-            kis=self.inhibitors.pack(kis, default=1e5, padding=1))
+            kms_s=self.substrates.pack_values(kms, default=0.1, padding=1),
+            kms_p=self.products.pack_values(kms, default=0.1, padding=1),
+            kas=self.activators.pack_values(kas, default=1e-7, padding=1),
+            kis=self.inhibitors.pack_values(kis, default=1e5, padding=1))
 
-    def unpack(self, packed: Optional[PackedNetworkKinetics] = None) -> Mapping[Reaction, ReactionKinetics]:
+    def unpack_kinetics(self, kparms: Optional[PackedNetworkKinetics] = None) -> Mapping[Reaction, ReactionKinetics]:
         """Converts PackedKinetics back to more easily accessible ReactionKinetics."""
-        packed = packed or self.kinetics
-        kms_s = self.substrates.unpack(packed.kms_s)
-        kms_p = self.products.unpack(packed.kms_p)
-        kas = self.activators.unpack(packed.kas)
-        kis = self.inhibitors.unpack(packed.kis)
+        kparms = kparms or self.kparms
+        kms_s = self.substrates.unpack_values(kparms.kms_s)
+        kms_p = self.products.unpack_values(kparms.kms_p)
+        kas = self.activators.unpack_values(kparms.kas)
+        kis = self.inhibitors.unpack_values(kparms.kis)
 
-        kinetics = {}
+        reaction_kinetics = {}
         for i, reaction in enumerate(self.network.reactions()):
             # km=kms_s[i] | kms_p[i], but not supported in current version of python
             km = {}
-            km.update(kms_s[i])
-            km.update(kms_p[i])
-            kinetics[reaction] = ReactionKinetics(
-                kcat_f=packed.kcats_f[i],
-                kcat_b=packed.kcats_b[i],
+            km.update(kms_s[reaction])
+            km.update(kms_p[reaction])
+            reaction_kinetics[reaction] = ReactionKinetics(
+                kcat_f=kparms.kcats_f[i],
+                kcat_b=kparms.kcats_b[i],
                 km=km,
-                ka=kas[i],
-                ki=kis[i],
+                ka=kas[reaction],
+                ki=kis[reaction],
             )
-        return kinetics
+        return reaction_kinetics
 
     def adjust_kinetics(self, dgrs: ArrayT, kvs: ArrayT, temperature=298.15):
         """Generates thermodynamically consistent kcats, given ΔG plus a velocity constant per reaction.
@@ -268,38 +278,40 @@ class ConvenienceKinetics:
         RT = R * temperature
 
         # $ln(k_{cat}^{+}) - ln(k_{cat}^{-}) = -\frac{\Delta{G}_r}{RT} - \sum_i{(n_i ln({K_M}_i))}$
-        ln_km_s = jnp.log(self.kinetics.kms_s) * self.substrates.mask
-        ln_km_p = jnp.log(self.kinetics.kms_p) * self.products.mask
+        ln_km_s = jnp.log(self.kparms.kms_s) * self.substrates.mask
+        ln_km_p = jnp.log(self.kparms.kms_p) * self.products.mask
         diffs = -dgrs / RT + jnp.sum(ln_km_s, axis=-1) - jnp.sum(ln_km_p, axis=-1)
 
         # e^(kvs +/- diffs/2)
         kcats = jnp.exp(kvs + diffs * jnp.array([[+0.5], [-0.5]]))
-        self.kinetics.kcats_f = kcats[0]
-        self.kinetics.kcats_b = kcats[1]
+        self.kparms.kcats_f = kcats[0]
+        self.kparms.kcats_b = kcats[1]
 
     def reaction_rates(self,
                        state: ArrayT,
                        enzyme_conc: ArrayT,
-                       kinetics: Optional[PackedNetworkKinetics] = None) -> ArrayT:
+                       kparms: Optional[PackedNetworkKinetics] = None) -> ArrayT:
         """Calculates current reaction rates using the convenience kinetics formula.
 
         Args:
-            state: Array of concentration values collinear with network.reactants().
+            state: A vector of state (i.e. concentration) values collinear with network reactants, or a vector of such
+                state vectors.
             enzyme_conc: Array of enzyme concentrations collinear with network.reactions().
-            kinetics: May override intrinsic kinetics defined for this network.
+            kparms: May override intrinsic kinetics defined for this network.
 
         Returns:
-            1d array of reaction rates, collinear with network.reactions().
+            Array with rates for all reactions in the network. Its shape is the result of broadcast operations among
+            the inputs `state` and `enzyme_conc`, plus any structure in `kparms`. For 1d inputs, the result has shape
+            (#reactions, ).
         """
-        if kinetics is None:
-            kinetics = self.kinetics
+        kparms = kparms or self.kparms
 
         # $\tilde{a} = a_i / {km}^a_i for all i; \tilde{b} = b_j / {km}^b_j for all j$, padded with ones as necessary.
-        tilde_s = self.substrates.tilde(state, kinetics.kms_s, padding=1)
-        tilde_p = self.products.tilde(state, kinetics.kms_p, padding=1)
+        tilde_s = self.substrates.map_state(state, padding=1.) / kparms.kms_s
+        tilde_p = self.products.map_state(state, padding=1.) / kparms.kms_p
 
         # $k_{+}^{cat} \prod_i{\tilde{a}_i} + k_{-}^{cat} \prod_j{\tilde{b}_j}$.
-        numerator = kinetics.kcats_f * jnp.prod(tilde_s, axis=-1) - kinetics.kcats_b * jnp.prod(tilde_p, axis=-1)
+        numerator = kparms.kcats_f * jnp.prod(tilde_s, axis=-1) - kparms.kcats_b * jnp.prod(tilde_p, axis=-1)
 
         # $\prod_i{(1 + \tilde{a}_i)} + \prod_j{(1 + \tilde{b}_j)} - 1$
         # tilde_y + mask = (1 + tilde_y) for real values, and 1 for padded values.
@@ -307,23 +319,27 @@ class ConvenienceKinetics:
             tilde_p + self.products.mask, axis=-1) - 1
 
         # Activation: $\prod_i{\frac{a_i}{a_i + K^A_i} = \prod_i{\frac{a_i / K^A_i}{a_i / K^A_i + 1}$
-        tilde_a = self.activators.tilde(state, kinetics.kas, padding=1)
+        tilde_a = self.activators.map_state(state, padding=1.) / kparms.kas
         activation = jnp.prod(tilde_a / (tilde_a + self.activators.mask), axis=-1)
         # Inhibition: $\prod_i{\frac{K^I_i}{a_i + K^I_i} = \prod_i{\frac{1}{a_i / K^I_i + 1}$
         # Since tilde_i is padded with zero already, we can use (tilde_i + 1) directly.
-        tilde_i = self.inhibitors.tilde(state, kinetics.kis, padding=0)
+        tilde_i = self.inhibitors.map_state(state, padding=0.) / kparms.kis
         inhibition = jnp.prod(1 / (tilde_i + 1), axis=-1)
 
         return enzyme_conc * activation * inhibition * numerator / denominator
 
-    def dstate_dt(self, state: ArrayT, enzyme_conc: ArrayT) -> ArrayT:
+    def dstate_dt(self, state: ArrayT, enzyme_conc: ArrayT, kparms: Optional[PackedNetworkKinetics] = None) -> ArrayT:
         """Calculates current rate of change per reactant using the convenience kinetics formula.
 
         Args:
-            state: Array of concentration values collinear with network.reactants().
+            state: A vector of state (i.e. concentration) values collinear with network reactants, or a vector of such
+                state vectors.
             enzyme_conc: Array of enzyme concentrations collinear with network.reactions().
+            kparms: May override intrinsic kinetics defined for this network.
 
         Returns:
-            1d array of rates of change, collinear with network.reactants().
+            Array with rates of change for all state quantities. Its shape is the result of broadcast operations among
+            the inputs `state` and `enzyme_conc`, plus any structure in `kparms`. For 1d inputs, the result has shape
+            (#reactants, ).
         """
-        return self.network.s_matrix @ self.reaction_rates(state, enzyme_conc)
+        return self.reaction_rates(state, enzyme_conc, kparms) @ self.network.s_matrix.T
