@@ -20,7 +20,7 @@ internal data structures with ones, so that multiplying across each row is unaff
 """
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Any, Dict, Iterable, Mapping, Optional, Union
+from typing import Dict, Iterable, Mapping, Optional, Set, Union
 
 import jax.numpy as jnp
 import numpy as np
@@ -29,6 +29,7 @@ from model.core import Molecule, Reaction
 from model.reaction_network import ReactionNetwork
 
 ArrayT = Union[np.ndarray, jnp.ndarray]
+ParamT = Union[float, ArrayT]
 R = 8.314463e-3  # or more precisely, exactly 8.31446261815324e-3 kilojoule per kelvin per mole
 
 
@@ -75,9 +76,9 @@ class Ligands:
         self.mask = mask
 
     def pack_values(self,
-             values: Mapping[Reaction, Mapping[Molecule, Any]],
-             default: Any = 0.0,
-             padding: Any = 0.0) -> jnp.ndarray:
+                    values: Mapping[Reaction, Mapping[Molecule, ParamT]],
+                    default: ParamT = 0.0,
+                    padding: ParamT = 0.0) -> jnp.ndarray:
         """Packs values per (reaction, molecule) pair into an array that aligns with this Ligands set.
 
         Intended for values that vary for a given molecule across reactions, such as Km. The values may be scalars or
@@ -105,7 +106,7 @@ class Ligands:
         # Put the (reaction, reactant) axes at the end to support broadcasting. For scalar values this is a no-op.
         return jnp.moveaxis(jnp.array(packed_values), (0, 1), (-2, -1))
 
-    def unpack_values(self, packed_values: ArrayT) -> Dict[Reaction, Dict[Molecule, Any]]:
+    def unpack_values(self, packed_values: ArrayT) -> Dict[Reaction, Dict[Molecule, ParamT]]:
         """Unpacks an array of values into a structure indexed by reaction and  molecule.
 
         Args:
@@ -152,11 +153,88 @@ class Ligands:
 @dataclass
 class ReactionKinetics:
     """Dataclass to hold kinetic parameters associated with an enzymatic Reaction."""
-    kcat_f: Any  # kcat(s) of the forward reaction
-    kcat_b: Any  # kcat(s) of the reverse (back) reaction
-    km: Mapping[Molecule, Any]  # Km(s) of each substrate and product with respect to the reaction
-    ka: Mapping[Molecule, Any]  # Binding constants of all activators
-    ki: Mapping[Molecule, Any]  # Binding constants of all inhibitors
+    kcat_f: ParamT  # kcat(s) of the forward reaction
+    kcat_b: ParamT  # kcat(s) of the reverse (back) reaction
+    km: Mapping[Molecule, ParamT]  # Km(s) of each substrate and product with respect to the reaction
+    ka: Mapping[Molecule, ParamT]  # Binding constants of all activators
+    ki: Mapping[Molecule, ParamT]  # Binding constants of all inhibitors
+
+    @staticmethod
+    def thermo_consistent(
+            reaction: Reaction,
+            delta_g: ParamT,
+            km: Optional[Mapping[Molecule, ParamT]] = None,
+            kv: Optional[ParamT] = None,
+            kcat_f: Optional[ParamT] = None,
+            kcat_b: Optional[ParamT] = None,
+            ka: Optional[Mapping[Molecule, ParamT]] = None,
+            ki: Optional[Mapping[Molecule, ParamT]] = None,
+            default_km: float = 0.1,
+            temperature: float = 298.15,
+            ignore: Optional[Set[Molecule]] = None,
+    ):
+        """Generates thermodynamically consistent kinetics, given ΔG, Kms, and velocity constant.
+
+        Calculates forward and back kcat values based on the Haldane relationship:
+            -ΔG/RT = ln(K) = ln(kcat+) - ln(kcat-) + sum(n ln(Km))
+
+        The calculation may override supplied values for kcat_f and/or kcat_b to maintain thermodynamic consistency.
+
+        Any of the kinetic parameters may be provided as scalars, or as arrays of values for ensemble models. The only
+        requirement is that all such arrays must be compatible according to numpy broadcast rules.
+
+        Args:
+            reaction: the reaction
+            delta_g: standard ΔG of the reaction
+            km: Km of each reactant with respect to the reaction, where known
+            kv: velocity constant, a measure of catalytic efficiency. If not supplied, `kv` will be calculated from
+                supplied values for `kcat_f` and/or `kcat_b`, or fall back to a reasonable default.
+            kcat_f: kcat of the forward reaction
+            kcat_b: kcat of the back reaction
+            ka: activators and corresponding Ka, if any
+            ki: inhibitors and correspond Ki, if any
+            default_km: Km assumed for any reactants missing from `km`
+            temperature: the temperature used for thermodynamic calculations. Defaults to standard room temperature
+            ignore: Molecules to ignore for the purpose of calculating kinetics. Typically this includes e.g. water and
+                protons, not because they are irrelevant, but because their effect on kinetics cannot be differentiated
+                under buffered aqueous reaction conditions.
+
+        Returns:
+            A complete and thermodynamically consistent ReactionKinetics object.
+        """
+        # All operations work for scalars, or any arrays that broadcast together.
+        RT = R * temperature
+        km = km or {}
+        ignore = ignore or set()
+        sum_ln_km = sum(
+            count * np.log(km.get(reactant, default_km))
+            for reactant, count in reaction.stoichiometry.items()
+            if reactant not in ignore
+        )
+        diff = -delta_g / RT + sum_ln_km
+
+        # Decision tree to calculate velocity constant(s) while respecting any passed-in kcats.
+        if kv is None:
+            if kcat_f is not None and kcat_b is not None:
+                kv = (np.log(kcat_f) + np.log(kcat_b)) / 2
+            elif kcat_f is not None:
+                kv = np.log(kcat_f) - diff / 2
+            elif kcat_b is not None:
+                kv = np.log(kcat_b) + diff / 2
+            else:
+                kv = 0.
+
+        return ReactionKinetics(
+            kcat_f=np.exp(kv + diff / 2),
+            kcat_b=np.exp(kv - diff / 2),
+            km={
+                reactant: km.get(reactant, default_km)
+                for reactant in reaction.stoichiometry
+                if reactant not in ignore
+            },
+            ka=dict(ka or {}),
+            ki=dict(ki or {}),
+        )
 
 
 # Define an empty ReactionKinetics object for missing data.
