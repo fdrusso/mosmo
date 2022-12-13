@@ -39,22 +39,26 @@ class Thermodynamics:
 
     def cc_reaction(self, reaction: Reaction) -> Optional[equilibrator_api.Reaction]:
         if reaction not in self._cc_reactions:
-            self._cc_reactions[reaction] = equilibrator_api.Reaction({
-                self.cc_compound(molecule): count for molecule, count in reaction.stoichiometry.items()})
+            stoich = {}
+            for molecule, count in reaction.stoichiometry.items():
+                cc_compound = self.cc_compound(molecule)
+                if cc_compound and cc_compound.inchi_key:
+                    stoich[cc_compound] = count
+            self._cc_reactions[reaction] = equilibrator_api.Reaction(stoich)
         return self._cc_reactions[reaction]
 
     def formation_delta_g(self, molecule: Molecule) -> float:
         # equilibrator_api intentionally makes this harder to discourage using formation delta-G.
         # https://equilibrator.readthedocs.io/en/latest/equilibrator_examples.html#Using-formation-energies-to-calculate-reaction-energies
         cc_compound = self.cc_compound(molecule)
-        dgf_mu = self.cc.standard_dg_formation(cc_compound)[0]
-        if dgf_mu is not None:
-            legendre = cc_compound.transform(self.cc.p_h, self.cc.ionic_strength, self.cc.temperature, self.cc.p_mg)
-            return dgf_mu + legendre.m_as("kJ/mol")
-        else:
-            # equilibrator_api does not return a value for e.g. protons, but documents that dg_f is 0 in this case.
-            # We should come up with a more robust way of dealing with this. But settle for returning 0 for now.
-            return 0
+        if cc_compound and cc_compound.inchi_key:
+            dgf_mu = self.cc.standard_dg_formation(cc_compound)[0]
+            if dgf_mu is not None:
+                legendre = cc_compound.transform(self.cc.p_h, self.cc.ionic_strength, self.cc.temperature, self.cc.p_mg)
+                return dgf_mu + legendre.m_as("kJ/mol")
+        # equilibrator_api does not return a value for e.g. protons, but documents that dg_f is 0 in this case.
+        # We should come up with a more robust way of dealing with this. But settle for returning 0 for now.
+        return 0
 
     def pkas(self, molecule: Molecule) -> List[float]:
         cc_compound = self.cc_compound(molecule)
