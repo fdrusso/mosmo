@@ -18,6 +18,7 @@ class Thermodynamics:
 
         self._cc_compounds = {}
         self._cc_reactions = {}
+        self._dg_f = {}
 
     def cc_compound(self, molecule: Molecule):
         if molecule not in self._cc_compounds:
@@ -47,9 +48,15 @@ class Thermodynamics:
             self._cc_reactions[reaction] = equilibrator_api.Reaction(stoich)
         return self._cc_reactions[reaction]
 
+    def set_formation_delta_g(self, molecule: Molecule, dg_f: float):
+        self._dg_f[molecule] = dg_f
+
     def formation_delta_g(self, molecule: Molecule) -> float:
         # equilibrator_api intentionally makes this harder to discourage using formation delta-G.
         # https://equilibrator.readthedocs.io/en/latest/equilibrator_examples.html#Using-formation-energies-to-calculate-reaction-energies
+        if molecule in self._dg_f:
+            return self._dg_f[molecule]
+
         cc_compound = self.cc_compound(molecule)
         if cc_compound and cc_compound.inchi_key:
             dgf_mu = self.cc.standard_dg_formation(cc_compound)[0]
@@ -75,6 +82,9 @@ class Thermodynamics:
             If concs is None (the default), returns ΔG°. If concentrations are provided, returns ΔG = ΔG° + RT lnQ.
         """
         dg_r = self.cc.standard_dg_prime(self.cc_reaction(reaction)).value.m
+        for reactant, count in reaction.stoichiometry.items():
+            if reactant in self._dg_f:
+                dg_r = dg_r + count * self._dg_f[reactant]
         if concs:
             ln_q = sum(np.log(concs.get(reactant, 1)) * count for reactant, count in reaction.stoichiometry.items())
             return dg_r + self.cc.RT.m * ln_q
