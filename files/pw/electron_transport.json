@@ -1,0 +1,1221 @@
+[
+  {
+    "map_name": "new_map",
+    "map_id": "4KhaXHS4Rg9F",
+    "map_description": "",
+    "homepage": "https://escher.github.io",
+    "schema": "https://escher.github.io/escher/jsonschema/1-0-0#"
+  },
+  {
+    "reactions": {
+      "0": {
+        "name": "NADP reduction",
+        "bigg_id": "nadp_red",
+        "reversibility": true,
+        "label_x": -1280,
+        "label_y": -75,
+        "gene_reaction_rule": "",
+        "genes": [],
+        "metabolites": [
+          {
+            "bigg_id": "NADP+",
+            "coefficient": -1
+          },
+          {
+            "bigg_id": "H+",
+            "coefficient": -1
+          },
+          {
+            "bigg_id": "e-",
+            "coefficient": -2
+          },
+          {
+            "bigg_id": "NADPH",
+            "coefficient": 1
+          }
+        ],
+        "segments": {
+          "0": {
+            "from_node_id": "1",
+            "to_node_id": "2",
+            "b1": null,
+            "b2": null
+          },
+          "1": {
+            "from_node_id": "3",
+            "to_node_id": "2",
+            "b1": null,
+            "b2": null
+          },
+          "2": {
+            "from_node_id": "1",
+            "to_node_id": "0",
+            "b1": {
+              "x": -1130,
+              "y": -140
+            },
+            "b2": {
+              "x": -1105,
+              "y": -190
+            }
+          },
+          "3": {
+            "from_node_id": "1",
+            "to_node_id": "4",
+            "b1": {
+              "x": -1130,
+              "y": -125
+            },
+            "b2": {
+              "x": -1150,
+              "y": -175
+            }
+          },
+          "4": {
+            "from_node_id": "1",
+            "to_node_id": "5",
+            "b1": {
+              "x": -1130,
+              "y": -115
+            },
+            "b2": {
+              "x": -1145,
+              "y": -145
+            }
+          },
+          "5": {
+            "from_node_id": "3",
+            "to_node_id": "6",
+            "b1": {
+              "x": -1130,
+              "y": -10
+            },
+            "b2": {
+              "x": -1105,
+              "y": 40
+            }
+          }
+        }
+      },
+      "1": {
+        "name": "Energy-independent transhydrogenase",
+        "bigg_id": "UdhA",
+        "reversibility": true,
+        "label_x": -1060,
+        "label_y": -75,
+        "gene_reaction_rule": "UdhA",
+        "genes": [
+          {
+            "name": "UdhA",
+            "bigg_id": "UdhA"
+          }
+        ],
+        "metabolites": [
+          {
+            "bigg_id": "NADH",
+            "coefficient": -1
+          },
+          {
+            "bigg_id": "NADP+",
+            "coefficient": -1
+          },
+          {
+            "bigg_id": "NAD+",
+            "coefficient": 1
+          },
+          {
+            "bigg_id": "NADPH",
+            "coefficient": 1
+          }
+        ],
+        "segments": {
+          "6": {
+            "from_node_id": "7",
+            "to_node_id": "8",
+            "b1": null,
+            "b2": null
+          },
+          "7": {
+            "from_node_id": "9",
+            "to_node_id": "8",
+            "b1": null,
+            "b2": null
+          },
+          "8": {
+            "from_node_id": "7",
+            "to_node_id": "10",
+            "b1": {
+              "x": -970,
+              "y": -155
+            },
+            "b2": {
+              "x": -880,
+              "y": -250
+            }
+          },
+          "9": {
+            "from_node_id": "7",
+            "to_node_id": "0",
+            "b1": {
+              "x": -970,
+              "y": -140
+            },
+            "b2": {
+              "x": -995,
+              "y": -190
+            }
+          },
+          "10": {
+            "from_node_id": "9",
+            "to_node_id": "12",
+            "b1": {
+              "x": -970,
+              "y": 5
+            },
+            "b2": {
+              "x": -880,
+              "y": 100
+            }
+          },
+          "11": {
+            "from_node_id": "9",
+            "to_node_id": "6",
+            "b1": {
+              "x": -970,
+              "y": -10
+            },
+            "b2": {
+              "x": -995,
+              "y": 40
+            }
+          }
+        }
+      },
+      "2": {
+        "name": "PMF-coupled transhydrogenase",
+        "bigg_id": "PntAB",
+        "reversibility": true,
+        "label_x": -800,
+        "label_y": -75,
+        "gene_reaction_rule": "PntAB",
+        "genes": [
+          {
+            "name": "PntAB",
+            "bigg_id": "PntAB"
+          }
+        ],
+        "metabolites": [
+          {
+            "bigg_id": "NADH",
+            "coefficient": -1
+          },
+          {
+            "bigg_id": "NADP+",
+            "coefficient": -1
+          },
+          {
+            "bigg_id": "H+(p)",
+            "coefficient": -1
+          },
+          {
+            "bigg_id": "NAD+",
+            "coefficient": 1
+          },
+          {
+            "bigg_id": "NADPH",
+            "coefficient": 1
+          },
+          {
+            "bigg_id": "H+",
+            "coefficient": 1
+          }
+        ],
+        "segments": {
+          "12": {
+            "from_node_id": "13",
+            "to_node_id": "14",
+            "b1": null,
+            "b2": null
+          },
+          "13": {
+            "from_node_id": "15",
+            "to_node_id": "14",
+            "b1": null,
+            "b2": null
+          },
+          "14": {
+            "from_node_id": "13",
+            "to_node_id": "10",
+            "b1": {
+              "x": -810,
+              "y": -140
+            },
+            "b2": {
+              "x": -785,
+              "y": -190
+            }
+          },
+          "15": {
+            "from_node_id": "13",
+            "to_node_id": "0",
+            "b1": {
+              "x": -810,
+              "y": -155
+            },
+            "b2": {
+              "x": -900,
+              "y": -250
+            }
+          },
+          "16": {
+            "from_node_id": "13",
+            "to_node_id": "17",
+            "b1": {
+              "x": -810,
+              "y": -180
+            },
+            "b2": {
+              "x": -810,
+              "y": -315
+            }
+          },
+          "17": {
+            "from_node_id": "15",
+            "to_node_id": "12",
+            "b1": {
+              "x": -810,
+              "y": -10
+            },
+            "b2": {
+              "x": -785,
+              "y": 40
+            }
+          },
+          "18": {
+            "from_node_id": "15",
+            "to_node_id": "6",
+            "b1": {
+              "x": -810,
+              "y": 5
+            },
+            "b2": {
+              "x": -900,
+              "y": 100
+            }
+          },
+          "19": {
+            "from_node_id": "15",
+            "to_node_id": "20",
+            "b1": {
+              "x": -810,
+              "y": 30
+            },
+            "b2": {
+              "x": -810,
+              "y": 165
+            }
+          }
+        }
+      },
+      "3": {
+        "name": "NAD reduction",
+        "bigg_id": "nad_red",
+        "reversibility": true,
+        "label_x": -640,
+        "label_y": -75,
+        "gene_reaction_rule": "",
+        "genes": [],
+        "metabolites": [
+          {
+            "bigg_id": "NAD+",
+            "coefficient": -1
+          },
+          {
+            "bigg_id": "H+",
+            "coefficient": -1
+          },
+          {
+            "bigg_id": "e-",
+            "coefficient": -2
+          },
+          {
+            "bigg_id": "NADH",
+            "coefficient": 1
+          }
+        ],
+        "segments": {
+          "20": {
+            "from_node_id": "21",
+            "to_node_id": "22",
+            "b1": null,
+            "b2": null
+          },
+          "21": {
+            "from_node_id": "23",
+            "to_node_id": "22",
+            "b1": null,
+            "b2": null
+          },
+          "22": {
+            "from_node_id": "21",
+            "to_node_id": "12",
+            "b1": {
+              "x": -650,
+              "y": -10
+            },
+            "b2": {
+              "x": -675,
+              "y": 40
+            }
+          },
+          "23": {
+            "from_node_id": "21",
+            "to_node_id": "25",
+            "b1": {
+              "x": -650,
+              "y": -25
+            },
+            "b2": {
+              "x": -640,
+              "y": 25
+            }
+          },
+          "24": {
+            "from_node_id": "21",
+            "to_node_id": "26",
+            "b1": {
+              "x": -650,
+              "y": -35
+            },
+            "b2": {
+              "x": -630,
+              "y": 0
+            }
+          },
+          "25": {
+            "from_node_id": "23",
+            "to_node_id": "10",
+            "b1": {
+              "x": -650,
+              "y": -140
+            },
+            "b2": {
+              "x": -675,
+              "y": -190
+            }
+          }
+        }
+      },
+      "5": {
+        "name": "NADH:ubiquinone oxidoreductase (H+ translocating)",
+        "bigg_id": "ndh1",
+        "reversibility": false,
+        "label_x": -390,
+        "label_y": -75,
+        "gene_reaction_rule": "NuoA-N",
+        "genes": [
+          {
+            "name": "NuoA-N",
+            "bigg_id": "NuoA-N"
+          }
+        ],
+        "metabolites": [
+          {
+            "bigg_id": "NADH",
+            "coefficient": -1
+          },
+          {
+            "bigg_id": "Q",
+            "coefficient": -1
+          },
+          {
+            "bigg_id": "H+",
+            "coefficient": -5
+          },
+          {
+            "bigg_id": "NAD+",
+            "coefficient": 1
+          },
+          {
+            "bigg_id": "QH2",
+            "coefficient": 1
+          },
+          {
+            "bigg_id": "H+(p)",
+            "coefficient": 4
+          }
+        ],
+        "segments": {
+          "34": {
+            "from_node_id": "37",
+            "to_node_id": "38",
+            "b1": null,
+            "b2": null
+          },
+          "35": {
+            "from_node_id": "39",
+            "to_node_id": "38",
+            "b1": null,
+            "b2": null
+          },
+          "36": {
+            "from_node_id": "37",
+            "to_node_id": "10",
+            "b1": {
+              "x": -475,
+              "y": 40
+            },
+            "b2": {
+              "x": -450,
+              "y": -250
+            }
+          },
+          "37": {
+            "from_node_id": "37",
+            "to_node_id": "40",
+            "b1": {
+              "x": -400,
+              "y": 5
+            },
+            "b2": {
+              "x": -350,
+              "y": 100
+            }
+          },
+          "38": {
+            "from_node_id": "37",
+            "to_node_id": "41",
+            "b1": {
+              "x": -400,
+              "y": 30
+            },
+            "b2": {
+              "x": -400,
+              "y": 165
+            }
+          },
+          "39": {
+            "from_node_id": "39",
+            "to_node_id": "12",
+            "b1": {
+              "x": -475,
+              "y": -190
+            },
+            "b2": {
+              "x": -450,
+              "y": 100
+            }
+          },
+          "40": {
+            "from_node_id": "39",
+            "to_node_id": "43",
+            "b1": {
+              "x": -400,
+              "y": -155
+            },
+            "b2": {
+              "x": -350,
+              "y": -250
+            }
+          },
+          "41": {
+            "from_node_id": "39",
+            "to_node_id": "44",
+            "b1": {
+              "x": -400,
+              "y": -180
+            },
+            "b2": {
+              "x": -400,
+              "y": -315
+            }
+          }
+        }
+      },
+      "9": {
+        "name": "Cytochrome bd1 Oxidase",
+        "bigg_id": "cytbd1",
+        "reversibility": false,
+        "label_x": 300,
+        "label_y": -75,
+        "gene_reaction_rule": "CydAB",
+        "genes": [
+          {
+            "name": "CydAB",
+            "bigg_id": "CydAB"
+          }
+        ],
+        "metabolites": [
+          {
+            "bigg_id": "QH2",
+            "coefficient": -2
+          },
+          {
+            "bigg_id": "H+",
+            "coefficient": -4
+          },
+          {
+            "bigg_id": "O2",
+            "coefficient": -1
+          },
+          {
+            "bigg_id": "Q",
+            "coefficient": 2
+          },
+          {
+            "bigg_id": "H+(p)",
+            "coefficient": 4
+          },
+          {
+            "bigg_id": "H2O",
+            "coefficient": 2
+          }
+        ],
+        "segments": {
+          "63": {
+            "from_node_id": "66",
+            "to_node_id": "67",
+            "b1": null,
+            "b2": null
+          },
+          "64": {
+            "from_node_id": "68",
+            "to_node_id": "67",
+            "b1": null,
+            "b2": null
+          },
+          "65": {
+            "from_node_id": "66",
+            "to_node_id": "43",
+            "b1": {
+              "x": 215,
+              "y": 40
+            },
+            "b2": {
+              "x": 200,
+              "y": -250
+            }
+          },
+          "66": {
+            "from_node_id": "66",
+            "to_node_id": "69",
+            "b1": {
+              "x": 290,
+              "y": 30
+            },
+            "b2": {
+              "x": 290,
+              "y": 165
+            }
+          },
+          "67": {
+            "from_node_id": "66",
+            "to_node_id": "70",
+            "b1": {
+              "x": 290,
+              "y": -10
+            },
+            "b2": {
+              "x": 270,
+              "y": 10
+            }
+          },
+          "68": {
+            "from_node_id": "68",
+            "to_node_id": "40",
+            "b1": {
+              "x": 215,
+              "y": -190
+            },
+            "b2": {
+              "x": 200,
+              "y": 100
+            }
+          },
+          "69": {
+            "from_node_id": "68",
+            "to_node_id": "72",
+            "b1": {
+              "x": 290,
+              "y": -180
+            },
+            "b2": {
+              "x": 290,
+              "y": -315
+            }
+          },
+          "70": {
+            "from_node_id": "68",
+            "to_node_id": "73",
+            "b1": {
+              "x": 290,
+              "y": -140
+            },
+            "b2": {
+              "x": 270,
+              "y": -155
+            }
+          }
+        }
+      },
+      "11": {
+        "name": "Cytochrome bo3 Oxidase",
+        "bigg_id": "cytbo3",
+        "reversibility": false,
+        "label_x": 60,
+        "label_y": -75,
+        "gene_reaction_rule": "CyoABCDE",
+        "genes": [
+          {
+            "name": "CyoABCDE",
+            "bigg_id": "CyoABCDE"
+          }
+        ],
+        "metabolites": [
+          {
+            "bigg_id": "QH2",
+            "coefficient": -2
+          },
+          {
+            "bigg_id": "H+",
+            "coefficient": -8
+          },
+          {
+            "bigg_id": "O2",
+            "coefficient": -1
+          },
+          {
+            "bigg_id": "Q",
+            "coefficient": 2
+          },
+          {
+            "bigg_id": "H+(p)",
+            "coefficient": 8
+          },
+          {
+            "bigg_id": "H2O",
+            "coefficient": 2
+          }
+        ],
+        "segments": {
+          "79": {
+            "from_node_id": "82",
+            "to_node_id": "83",
+            "b1": null,
+            "b2": null
+          },
+          "80": {
+            "from_node_id": "84",
+            "to_node_id": "83",
+            "b1": null,
+            "b2": null
+          },
+          "81": {
+            "from_node_id": "82",
+            "to_node_id": "43",
+            "b1": {
+              "x": -25,
+              "y": 40
+            },
+            "b2": {
+              "x": -40,
+              "y": -250
+            }
+          },
+          "82": {
+            "from_node_id": "82",
+            "to_node_id": "86",
+            "b1": {
+              "x": 50,
+              "y": 30
+            },
+            "b2": {
+              "x": 50,
+              "y": 165
+            }
+          },
+          "83": {
+            "from_node_id": "82",
+            "to_node_id": "87",
+            "b1": {
+              "x": 50,
+              "y": -10
+            },
+            "b2": {
+              "x": 30,
+              "y": 10
+            }
+          },
+          "84": {
+            "from_node_id": "84",
+            "to_node_id": "40",
+            "b1": {
+              "x": -25,
+              "y": -190
+            },
+            "b2": {
+              "x": -40,
+              "y": 100
+            }
+          },
+          "85": {
+            "from_node_id": "84",
+            "to_node_id": "88",
+            "b1": {
+              "x": 50,
+              "y": -180
+            },
+            "b2": {
+              "x": 50,
+              "y": -315
+            }
+          },
+          "86": {
+            "from_node_id": "84",
+            "to_node_id": "89",
+            "b1": {
+              "x": 50,
+              "y": -140
+            },
+            "b2": {
+              "x": 30,
+              "y": -155
+            }
+          }
+        }
+      },
+      "12": {
+        "name": "Ubiquinone Reduction",
+        "bigg_id": "q_red",
+        "reversibility": true,
+        "label_x": -190,
+        "label_y": -75,
+        "gene_reaction_rule": "",
+        "genes": [],
+        "metabolites": [
+          {
+            "bigg_id": "Q",
+            "coefficient": -1
+          },
+          {
+            "bigg_id": "e-",
+            "coefficient": -2
+          },
+          {
+            "bigg_id": "QH2",
+            "coefficient": 1
+          }
+        ],
+        "segments": {
+          "87": {
+            "from_node_id": "90",
+            "to_node_id": "91",
+            "b1": null,
+            "b2": null
+          },
+          "88": {
+            "from_node_id": "92",
+            "to_node_id": "91",
+            "b1": null,
+            "b2": null
+          },
+          "89": {
+            "from_node_id": "90",
+            "to_node_id": "40",
+            "b1": {
+              "x": -200,
+              "y": 5
+            },
+            "b2": {
+              "x": -200,
+              "y": 40
+            }
+          },
+          "90": {
+            "from_node_id": "90",
+            "to_node_id": "94",
+            "b1": {
+              "x": -200,
+              "y": -10
+            },
+            "b2": {
+              "x": -220,
+              "y": 0
+            }
+          },
+          "91": {
+            "from_node_id": "92",
+            "to_node_id": "43",
+            "b1": {
+              "x": -200,
+              "y": -155
+            },
+            "b2": {
+              "x": -200,
+              "y": -190
+            }
+          }
+        }
+      }
+    },
+    "nodes": {
+      "0": {
+        "node_type": "metabolite",
+        "x": -1050,
+        "y": -250,
+        "bigg_id": "NADP+",
+        "name": "NADP+",
+        "label_x": -1080,
+        "label_y": -285,
+        "node_is_primary": true
+      },
+      "1": {
+        "node_type": "multimarker",
+        "x": -1130,
+        "y": -95
+      },
+      "2": {
+        "node_type": "midmarker",
+        "x": -1130,
+        "y": -75
+      },
+      "3": {
+        "node_type": "multimarker",
+        "x": -1130,
+        "y": -55
+      },
+      "4": {
+        "node_type": "metabolite",
+        "x": -1185,
+        "y": -210,
+        "bigg_id": "H+",
+        "name": "proton",
+        "label_x": -1225,
+        "label_y": -215,
+        "node_is_primary": false
+      },
+      "5": {
+        "node_type": "metabolite",
+        "x": -1210,
+        "y": -180,
+        "bigg_id": "e-",
+        "name": "electron",
+        "label_x": -1245,
+        "label_y": -180,
+        "node_is_primary": false
+      },
+      "6": {
+        "node_type": "metabolite",
+        "x": -1050,
+        "y": 100,
+        "bigg_id": "NADPH",
+        "name": "NADPH",
+        "label_x": -1095,
+        "label_y": 150,
+        "node_is_primary": true
+      },
+      "7": {
+        "node_type": "multimarker",
+        "x": -970,
+        "y": -95
+      },
+      "8": {
+        "node_type": "midmarker",
+        "x": -970,
+        "y": -75
+      },
+      "9": {
+        "node_type": "multimarker",
+        "x": -970,
+        "y": -55
+      },
+      "10": {
+        "node_type": "metabolite",
+        "x": -730,
+        "y": -250,
+        "bigg_id": "NADH",
+        "name": "NADH",
+        "label_x": -750,
+        "label_y": -285,
+        "node_is_primary": true
+      },
+      "12": {
+        "node_type": "metabolite",
+        "x": -730,
+        "y": 100,
+        "bigg_id": "NAD+",
+        "name": "NAD+",
+        "label_x": -750,
+        "label_y": 150,
+        "node_is_primary": true
+      },
+      "13": {
+        "node_type": "multimarker",
+        "x": -810,
+        "y": -95
+      },
+      "14": {
+        "node_type": "midmarker",
+        "x": -810,
+        "y": -75
+      },
+      "15": {
+        "node_type": "multimarker",
+        "x": -810,
+        "y": -55
+      },
+      "17": {
+        "node_type": "metabolite",
+        "x": -810,
+        "y": -375,
+        "bigg_id": "H+(p)",
+        "name": "proton (periplasm)",
+        "label_x": -790,
+        "label_y": -375,
+        "node_is_primary": false
+      },
+      "20": {
+        "node_type": "metabolite",
+        "x": -810,
+        "y": 225,
+        "bigg_id": "H+",
+        "name": "proton",
+        "label_x": -790,
+        "label_y": 235,
+        "node_is_primary": false
+      },
+      "21": {
+        "node_type": "multimarker",
+        "x": -650,
+        "y": -55
+      },
+      "22": {
+        "node_type": "midmarker",
+        "x": -650,
+        "y": -75
+      },
+      "23": {
+        "node_type": "multimarker",
+        "x": -650,
+        "y": -95
+      },
+      "25": {
+        "node_type": "metabolite",
+        "x": -605,
+        "y": 45,
+        "bigg_id": "H+",
+        "name": "proton",
+        "label_x": -590,
+        "label_y": 55,
+        "node_is_primary": false
+      },
+      "26": {
+        "node_type": "metabolite",
+        "x": -575,
+        "y": 5,
+        "bigg_id": "e-",
+        "name": "electron",
+        "label_x": -560,
+        "label_y": 10,
+        "node_is_primary": false
+      },
+      "37": {
+        "node_type": "multimarker",
+        "x": -400,
+        "y": -55
+      },
+      "38": {
+        "node_type": "midmarker",
+        "x": -400,
+        "y": -75
+      },
+      "39": {
+        "node_type": "multimarker",
+        "x": -400,
+        "y": -95
+      },
+      "40": {
+        "node_type": "metabolite",
+        "x": -200,
+        "y": 100,
+        "bigg_id": "Q",
+        "name": "ubiquinone",
+        "label_x": -164,
+        "label_y": 150,
+        "node_is_primary": true
+      },
+      "41": {
+        "node_type": "metabolite",
+        "x": -400,
+        "y": 225,
+        "bigg_id": "H+",
+        "name": "proton",
+        "label_x": -380,
+        "label_y": 235,
+        "node_is_primary": false
+      },
+      "43": {
+        "node_type": "metabolite",
+        "x": -200,
+        "y": -250,
+        "bigg_id": "QH2",
+        "name": "ubiquinol",
+        "label_x": -190,
+        "label_y": -285,
+        "node_is_primary": true
+      },
+      "44": {
+        "node_type": "metabolite",
+        "x": -400,
+        "y": -375,
+        "bigg_id": "H+(p)",
+        "name": "proton (periplasm)",
+        "label_x": -380,
+        "label_y": -375,
+        "node_is_primary": false
+      },
+      "66": {
+        "node_type": "multimarker",
+        "x": 290,
+        "y": -55
+      },
+      "67": {
+        "node_type": "midmarker",
+        "x": 290,
+        "y": -75
+      },
+      "68": {
+        "node_type": "multimarker",
+        "x": 290,
+        "y": -95
+      },
+      "69": {
+        "node_type": "metabolite",
+        "x": 290,
+        "y": 225,
+        "bigg_id": "H+",
+        "name": "proton",
+        "label_x": 310,
+        "label_y": 235,
+        "node_is_primary": false
+      },
+      "70": {
+        "node_type": "metabolite",
+        "x": 225,
+        "y": 50,
+        "bigg_id": "O2",
+        "name": "oxygen",
+        "label_x": 180,
+        "label_y": 60,
+        "node_is_primary": false
+      },
+      "72": {
+        "node_type": "metabolite",
+        "x": 290,
+        "y": -375,
+        "bigg_id": "H+(p)",
+        "name": "proton (periplasm)",
+        "label_x": 310,
+        "label_y": -375,
+        "node_is_primary": false
+      },
+      "73": {
+        "node_type": "metabolite",
+        "x": 225,
+        "y": -200,
+        "bigg_id": "H2O",
+        "name": "water",
+        "label_x": 165,
+        "label_y": -200,
+        "node_is_primary": false
+      },
+      "82": {
+        "node_type": "multimarker",
+        "x": 50,
+        "y": -55
+      },
+      "83": {
+        "node_type": "midmarker",
+        "x": 50,
+        "y": -75
+      },
+      "84": {
+        "node_type": "multimarker",
+        "x": 50,
+        "y": -95
+      },
+      "86": {
+        "node_type": "metabolite",
+        "x": 50,
+        "y": 225,
+        "bigg_id": "H+",
+        "name": "proton",
+        "label_x": 70,
+        "label_y": 235,
+        "node_is_primary": false
+      },
+      "87": {
+        "node_type": "metabolite",
+        "x": -15,
+        "y": 50,
+        "bigg_id": "O2",
+        "name": "oxygen",
+        "label_x": -60,
+        "label_y": 60,
+        "node_is_primary": false
+      },
+      "88": {
+        "node_type": "metabolite",
+        "x": 50,
+        "y": -375,
+        "bigg_id": "H+(p)",
+        "name": "proton (periplasm)",
+        "label_x": 70,
+        "label_y": -375,
+        "node_is_primary": false
+      },
+      "89": {
+        "node_type": "metabolite",
+        "x": -15,
+        "y": -200,
+        "bigg_id": "H2O",
+        "name": "water",
+        "label_x": -75,
+        "label_y": -200,
+        "node_is_primary": false
+      },
+      "90": {
+        "node_type": "multimarker",
+        "x": -200,
+        "y": -55
+      },
+      "91": {
+        "node_type": "midmarker",
+        "x": -200,
+        "y": -75
+      },
+      "92": {
+        "node_type": "multimarker",
+        "x": -200,
+        "y": -95
+      },
+      "94": {
+        "node_type": "metabolite",
+        "x": -265,
+        "y": 25,
+        "bigg_id": "e-",
+        "name": "electron",
+        "label_x": -300,
+        "label_y": 30,
+        "node_is_primary": false
+      }
+    },
+    "text_labels": {},
+    "canvas": {
+      "x": -1370,
+      "y": -500,
+      "width": 1980,
+      "height": 820
+    }
+  }
+]
