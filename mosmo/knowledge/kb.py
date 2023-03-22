@@ -5,7 +5,8 @@ from typing import Any, Dict, List, Mapping, Optional, Type
 import pymongo
 
 from mosmo.knowledge import codecs
-from mosmo.model.core import DbXref, KbEntry, Molecule, Reaction, Pathway
+from mosmo.model.base import DbXref, KbEntry
+from mosmo.model.core import Molecule, Reaction, Pathway
 
 
 @dataclass(eq=True, order=True, frozen=True)
