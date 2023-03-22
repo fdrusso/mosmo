@@ -9,8 +9,8 @@ import jax.numpy as jnp
 import numpy as np
 import scipy.optimize
 
-from model.reaction_network import ReactionNetwork
-from model.core import Molecule, Reaction
+from mosmo.model.reaction_network import ReactionNetwork
+from mosmo.model.core import Molecule, Reaction
 
 ArrayT = Union[np.ndarray, jnp.ndarray]
 

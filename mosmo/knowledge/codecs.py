@@ -8,7 +8,7 @@ constraint.
 import abc
 from typing import Callable, Iterable, Mapping
 
-from model.core import DbXref, KbEntry, Molecule, Reaction, Pathway, Specialization, Variation
+from mosmo.model.core import DbXref, KbEntry, Molecule, Reaction, Pathway, Specialization, Variation
 
 
 class Codec(abc.ABC):

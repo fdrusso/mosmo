@@ -17,7 +17,7 @@ from typing import Any, Iterable, Iterator, Mapping, Optional, Tuple
 
 import numpy as np
 
-from model.core import Molecule, Reaction
+from mosmo.model.core import Molecule, Reaction
 
 
 class ReactionNetwork:

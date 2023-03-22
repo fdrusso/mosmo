@@ -1,6 +1,6 @@
 from typing import Iterable
 
-from model.core import Molecule, Reaction
+from mosmo.model.core import Molecule, Reaction
 
 
 def escher_model(model_name: str, reactions: Iterable[Reaction]):

@@ -3,8 +3,8 @@ from typing import Union
 from vivarium.core.process import Process
 from vivarium.core.types import State, Update
 
-from model.reaction_network import ReactionNetwork
-from sim.fba_gd import FbaGd, ProductionObjective, ExclusionObjective
+from mosmo.model.reaction_network import ReactionNetwork
+from mosmo.sim import FbaGd, ProductionObjective, ExclusionObjective
 
 
 class FbaProcess(Process):

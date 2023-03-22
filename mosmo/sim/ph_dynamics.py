@@ -24,7 +24,7 @@ import jax.numpy as jnp
 import numpy as np
 from scipy import integrate, optimize
 
-from model.core import Molecule
+from mosmo.model.core import Molecule
 
 # Built-in definitions for key components, avoids dependence on any specific KB sources. If desired, these can safely
 # be replaced with application-specific definitions before using PhBuffer.

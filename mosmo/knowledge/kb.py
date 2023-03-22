@@ -4,8 +4,8 @@ from typing import Any, Dict, List, Mapping, Optional, Type
 
 import pymongo
 
-import knowledge.codecs as codecs
-from model.core import DbXref, KbEntry, Molecule, Reaction, Pathway
+from mosmo.knowledge import codecs
+from mosmo.model.core import DbXref, KbEntry, Molecule, Reaction, Pathway
 
 
 @dataclass(eq=True, order=True, frozen=True)

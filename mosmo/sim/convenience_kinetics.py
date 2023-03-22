@@ -25,8 +25,8 @@ from typing import Dict, Iterable, Mapping, Optional, Set, Union
 import jax.numpy as jnp
 import numpy as np
 
-from model.core import Molecule, Reaction
-from model.reaction_network import ReactionNetwork
+from mosmo.model.core import Molecule, Reaction
+from mosmo.model.reaction_network import ReactionNetwork
 
 ArrayT = Union[np.ndarray, jnp.ndarray]
 ParamT = Union[float, ArrayT]
