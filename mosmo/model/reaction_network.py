@@ -13,11 +13,70 @@ Some characteristics of typical reaction networks:
 - The converse is not true: reactants such as ATP or water may each participate in many reactions, so
   the corresponding rows may have many nonzero values.
 """
-from typing import Any, Iterable, Iterator, Mapping, Optional, Tuple
+from typing import Any, Generic, Iterable, Iterator, Mapping, Optional, Sequence, Tuple, TypeVar, Union
 
 import numpy as np
 
+from mosmo.model.base import KbEntry
 from mosmo.model.core import Molecule, Reaction
+
+KE = TypeVar("KE", bound=KbEntry)
+
+
+class Index(Generic[KE], Sequence[KE]):
+    """Provides a mapping between a numerically indexed vector or array and the KbEntry items they correspond to.
+
+    An Index behaves as a list with set semantics, i.e. any item appears at most once and therefore has a unique
+    numerical position. It is useful for moving back and forth between packed values in numerically-indexed vectors
+    (e.g. numpy arrays) and the semantic objects represented at each position. Random access by position is supported
+    directly by subscripting. Random access by item is supported by position().
+    """
+
+    def __init__(self):
+        self._items = []
+        self._index = {}
+
+    def __len__(self) -> int:
+        return len(self._items)
+
+    def __iter__(self) -> Iterator[KE]:
+        """Iterates through the items of the index in the same order as an indexed vector or array."""
+        return iter(self._items)
+
+    def __contains__(self, item) -> bool:
+        """Constant-time containment test."""
+        return item in self._index
+
+    def __getitem__(self, index: Union[int, slice]) -> KE:
+        """Returns the item at the numerical index (or slice)."""
+        return self._items[index]
+
+    def add(self, item: KE):
+        """Adds an item to the index using set semantics; i.e. this is a no-op for existing items."""
+        if item not in self._index:
+            self._index[item] = len(self._items)  # Next index
+            self._items.append(item)
+
+    def update(self, items: Iterable[KE]):
+        """Adds a collection of items to the index using set semantics."""
+        for item in items:
+            self.add(item)
+
+    def position(self, item: KE) -> Optional[int]:
+        """Returns the numerical position of the item, or None if not present."""
+        return self._index.get(item, None)
+
+    def pack(self, data: Mapping[KE, Any], default: Any = 0) -> np.ndarray:
+        """Converts a dict of {item: value} to a 1D vector for numpy ops."""
+        return np.array([data.get(item, default) for item in self._items], dtype=float)
+
+    def unpack(self, values: Iterable[Any]) -> Mapping[KE, Any]:
+        """Converts an array of values to an {item: value} dict."""
+        return {item: value for item, value in zip(self._items, values)}
+
+    def labels(self) -> Sequence[str]:
+        """Presents the items in the index as a list of (string) labels."""
+        return [item.label for item in self._items]
 
 
 class ReactionNetwork:
@@ -40,11 +99,9 @@ class ReactionNetwork:
         # Defer construction of the stoichiometry matrix until it is needed.
         self._s_matrix = None
 
-        # Build maps between string id and numerical array index, for reactions and reactants.
-        self._reactions = []
-        self._reaction_index = {}
-        self._reactants = []
-        self._reactant_index = {}
+        # Prepare indices for reactions and reactants.
+        self.reactions: Index[Reaction] = Index()
+        self.reactants: Index[Molecule] = Index()
         if reactions is not None:
             for reaction in reactions:
                 self.add_reaction(reaction)
@@ -55,12 +112,9 @@ class ReactionNetwork:
         Args:
             reaction: the reaction to add to the network.
         """
-        self._reaction_index[reaction] = len(self._reactions)  # Next index
-        self._reactions.append(reaction)
-        for reactant in reaction.stoichiometry:
-            if reactant not in self._reactant_index:
-                self._reactant_index[reactant] = len(self._reactants)
-                self._reactants.append(reactant)
+        self.reactions.add(reaction)
+        self.reactants.update(reaction.stoichiometry.keys())
+
         # Force reconstruction of the stoichiometry matrix.
         self._s_matrix = None
 
@@ -69,56 +123,14 @@ class ReactionNetwork:
         """The 2D stoichiometry matrix describing this reaction network."""
         if self._s_matrix is None:
             s_matrix = np.zeros(self.shape)
-            for reaction in self._reactions:
+            for reaction in self.reactions:
                 for reactant, coeff in reaction.stoichiometry.items():
                     # (reactant, reaction) is guaranteed unique
-                    s_matrix[self._reactant_index[reactant], self._reaction_index[reaction]] = coeff
+                    s_matrix[self.reactants.position(reactant), self.reactions.position(reaction)] = coeff
             self._s_matrix = s_matrix
         return self._s_matrix
 
     @property
     def shape(self) -> Tuple[int, int]:
         """The 2D shape of this network, (#molecules, #reactions)."""
-        return len(self._reactants), len(self._reactions)
-
-    def reactions(self) -> Iterator[Reaction]:
-        """Iterates through reactions in their indexed order."""
-        for reaction in self._reactions:
-            yield reaction
-
-    def reaction(self, i: int) -> Reaction:
-        """The reaction at index i."""
-        return self._reactions[i]
-
-    def reaction_index(self, reaction: Reaction) -> Optional[int]:
-        """The index of the reaction, or None if it is not part of the network."""
-        return self._reaction_index.get(reaction, None)
-
-    def reaction_vector(self, data: Mapping[Reaction, Any], default: Any = 0) -> np.ndarray:
-        """Converts a dict of {reaction: value} to a 1D vector for numpy ops."""
-        return np.array([data.get(reaction, default) for reaction in self._reactions], dtype=float)
-
-    def reaction_values(self, values: Iterable[Any]) -> Mapping[Reaction, Any]:
-        """Converts an array of values to a {reaction: value} dict."""
-        return {reaction: value for reaction, value in zip(self._reactions, values)}
-
-    def reactants(self) -> Iterator[Molecule]:
-        """Iterates through reactants in their indexed order."""
-        for reactant in self._reactants:
-            yield reactant
-
-    def reactant(self, i: int) -> Molecule:
-        """The reactant at index i."""
-        return self._reactants[i]
-
-    def reactant_index(self, reactant: Molecule) -> Optional[int]:
-        """The index of the reactant, or None if it is not part of the network."""
-        return self._reactant_index.get(reactant, None)
-
-    def reactant_vector(self, data: Mapping[str, Any], default: Any = 0) -> np.ndarray:
-        """Converts a dict of {reactant: value} to a 1D vector for numpy ops."""
-        return np.array([data.get(reactant, default) for reactant in self._reactants], dtype=float)
-
-    def reactant_values(self, values: Iterable[Any]) -> Mapping[Molecule, Any]:
-        """Converts an array of values to a {reactant: value} dict."""
-        return {reactant: value for reactant, value in zip(self._reactants, values)}
+        return len(self.reactants), len(self.reactions)

@@ -58,8 +58,8 @@ class Ligands:
 
         ragged_indices = []
         width = 0
-        for reaction in network.reactions():
-            indices = [network.reactant_index(ligand) for ligand in reaction_ligands.get(reaction, [])]
+        for reaction in network.reactions:
+            indices = [network.reactants.position(ligand) for ligand in reaction_ligands.get(reaction, [])]
             ragged_indices.append(indices)
             width = max(width, len(indices))
 
@@ -93,12 +93,12 @@ class Ligands:
             An array with shape (#reactions, width) that aligns with indices and mask.
         """
         packed_values = []
-        for i, reaction in enumerate(self.network.reactions()):
+        for i, reaction in enumerate(self.network.reactions):
             row_values = values.get(reaction, {})
             row = []
             for j, ligand_index in enumerate(self.indices[i]):
                 if self.mask[i, j]:
-                    row.append(row_values.get(self.network.reactant(ligand_index), default))
+                    row.append(row_values.get(self.network.reactants[ligand_index], default))
                 else:
                     row.append(padding)
             packed_values.append(row)
@@ -119,11 +119,11 @@ class Ligands:
         # Put the (reaction, reactant) axes at the front for indexing. For an array of scalar values this is a no-op.
         _packed_values = jnp.moveaxis(packed_values, (-2, -1), (0, 1))
         values = {}
-        for i, reaction in enumerate(self.network.reactions()):
+        for i, reaction in enumerate(self.network.reactions):
             row_values = {}
             for j, ligand_index in enumerate(self.indices[i]):
                 if self.mask[i, j]:
-                    row_values[self.network.reactant(ligand_index)] = packed_values[i, j]
+                    row_values[self.network.reactants[ligand_index]] = packed_values[i, j]
             values[reaction] = row_values
         return values
 
@@ -304,7 +304,7 @@ class ConvenienceKinetics:
         kms = {}
         kas = {}
         kis = {}
-        for reaction in self.network.reactions():
+        for reaction in self.network.reactions:
             kinetics = reaction_kinetics.get(reaction, ReactionKinetics.NONE)
             kcats_f.append(kinetics.kcat_f)
             kcats_b.append(kinetics.kcat_b)
@@ -329,7 +329,7 @@ class ConvenienceKinetics:
         kis = self.inhibitors.unpack_values(kparms.kis)
 
         reaction_kinetics = {}
-        for i, reaction in enumerate(self.network.reactions()):
+        for i, reaction in enumerate(self.network.reactions):
             # km=kms_s[i] | kms_p[i], but not supported in current version of python
             km = {}
             km.update(kms_s[reaction])

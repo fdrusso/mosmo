@@ -9,8 +9,8 @@ import jax.numpy as jnp
 import numpy as np
 import scipy.optimize
 
-from mosmo.model.reaction_network import ReactionNetwork
 from mosmo.model.core import Molecule, Reaction
+from mosmo.model.reaction_network import ReactionNetwork
 
 ArrayT = Union[np.ndarray, jnp.ndarray]
 
@@ -58,7 +58,7 @@ class SteadyStateObjective(Objective):
     def __init__(self, network: ReactionNetwork, intermediates: Iterable[Molecule], weight: float = 1.0):
         super().__init__(weight)
         self.network = network
-        self.indices = np.array([network.reactant_index(m) for m in intermediates], dtype=np.int32)
+        self.indices = np.array([network.reactants.position(m) for m in intermediates], dtype=np.int32)
 
     def residual(self, velocities: ArrayT, dmdt: ArrayT, params=None) -> jnp.ndarray:
         """Ignores velocities; returns dM/dt values for all configured intermediates."""
@@ -71,7 +71,7 @@ class IrreversibilityObjective(Objective):
     def __init__(self, network: ReactionNetwork, weight: float = 1.0):
         super().__init__(weight)
         self.network = network
-        self.indices = np.array([i for i, reaction in enumerate(network.reactions()) if not reaction.reversible],
+        self.indices = np.array([i for i, reaction in enumerate(network.reactions) if not reaction.reversible],
                                 dtype=np.int32)
 
     def residual(self, velocities: ArrayT, dmdt: ArrayT, params=None) -> jnp.ndarray:
@@ -96,14 +96,14 @@ class ProductionObjective(Objective):
                  weight: float = 1.0):
         super().__init__(weight)
         self.network = network
-        self.indices = np.array([network.reactant_index(met) for met in targets], dtype=np.int32)
+        self.indices = np.array([network.reactants.position(met) for met in targets], dtype=np.int32)
         self.bounds = np.full((self.indices.shape[0], 2), [-np.inf, np.inf]).T
         self.update_params(targets)
 
     def update_params(self, targets: Mapping[Molecule, Union[float, Tuple[Optional[float], Optional[float]]]]):
         """Updates some or all target dM/dt values."""
         for i, met_idx in enumerate(self.indices):
-            met = self.network.reactant(met_idx)
+            met = self.network.reactants[met_idx]
             if met in targets:
                 target = targets[met]
                 if isinstance(target, float) or isinstance(target, int):
@@ -139,14 +139,14 @@ class VelocityObjective(Objective):
                  weight: float = 1.0):
         super().__init__(weight)
         self.network = network
-        self.indices = np.array([network.reaction_index(rxn) for rxn in targets], dtype=np.int32)
+        self.indices = np.array([network.reactions.position(rxn) for rxn in targets], dtype=np.int32)
         self.bounds = np.full((self.indices.shape[0], 2), [-np.inf, np.inf]).T
         self.update_params(targets)
 
     def update_params(self, targets: Mapping[Reaction, Union[float, Tuple[Optional[float], Optional[float]]]]):
         """Updates some or all target velocity values."""
         for i, rxn_idx in enumerate(self.indices):
-            rxn = self.network.reaction(rxn_idx)
+            rxn = self.network.reactions[rxn_idx]
             if rxn in targets:
                 target = targets[rxn]
                 if isinstance(target, float) or isinstance(target, int):
@@ -174,7 +174,7 @@ class ExclusionObjective(Objective):
                  weight: float = 1.0):
         super().__init__(weight)
         self.network = network
-        self.indices = np.array([network.reaction_index(rxn) for rxn in reactions], dtype=np.int32)
+        self.indices = np.array([network.reactions.position(rxn) for rxn in reactions], dtype=np.int32)
 
     def residual(self, velocities: ArrayT, dmdt: ArrayT, params=None) -> jnp.ndarray:
         return jnp.prod(velocities[self.indices], keepdims=True)
