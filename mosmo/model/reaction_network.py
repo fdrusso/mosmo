@@ -13,7 +13,7 @@ Some characteristics of typical reaction networks:
 - The converse is not true: reactants such as ATP or water may each participate in many reactions, so
   the corresponding rows may have many nonzero values.
 """
-from typing import Any, Generic, Iterable, Iterator, Mapping, Optional, Sequence, Tuple, TypeVar, Union
+from typing import Any, Iterable, Iterator, Mapping, Optional, Sequence, Tuple, TypeVar, Union
 
 import numpy as np
 
@@ -23,7 +23,7 @@ from mosmo.model.core import Molecule, Reaction
 KE = TypeVar("KE", bound=KbEntry)
 
 
-class Index(Generic[KE], Sequence[KE]):
+class Index(Sequence[KE]):
     """Provides a mapping between a numerically indexed vector or array and the KbEntry items they correspond to.
 
     An Index behaves as a list with set semantics, i.e. any item appears at most once and therefore has a unique
