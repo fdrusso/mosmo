@@ -1,9 +1,9 @@
 """Encode and decode JSON (BSON) documents as KB classes.
 
-Codecs define the encoding/decoding schema for KB objects in the storage layer. PyMongo does have a mechanism to
-define custom types, but it is not flexible enough to do this cleanly in our case. The main cost is we need to define
-the schema relationships with explicit types, rather than having the system infer them. This seems a manageable
-constraint.
+Codecs define the encoding/decoding schema for KB objects in the storage layer (MongoDB). PyMongo does have a mechanism
+to define custom types, but it is not flexible enough to work cleanly in our case. The main cost of the approach
+implemented here is that we need to define schema relationships explicitly, with defined types, rather than relying on
+the system to infer them. This seems a manageable constraint.
 """
 import abc
 from typing import Callable, Iterable, Mapping
@@ -13,11 +13,14 @@ from mosmo.model.core import Molecule, Reaction, Pathway, Specialization, Variat
 
 
 class Codec(abc.ABC):
-    """Base class for all Codecs.
+    """Base class for all Codecs."""
 
-    The semantics of the base class are difficult to capture using python type hints. The intent is that an instance of
-    a given subclass translates between a python object of defined type, and a corresponding pymongo document.
-    """
+    # Implementation Note: Mongo stores data as "documents" that use JSON semantics, i.e. each document is a dict whose
+    # values may be scalars, lists, or dicts. To express the semantics of a given codec using python type hints and
+    # generics devolves into a specification for JSON itself, which is beyond the scope of what we're trying to do here,
+    # and ultimately makes Codec usage _less_ readable. Instead, we rely on subclasses to define and enforce typing of
+    # encoded types and resulting documents or fragments.
+
     @abc.abstractmethod
     def encode(self, obj):
         """Converts a python object into a pymongo document or fragment."""
