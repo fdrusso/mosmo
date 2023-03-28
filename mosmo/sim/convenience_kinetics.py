@@ -25,8 +25,7 @@ from typing import Dict, Iterable, Mapping, Optional, Set, Union
 import jax.numpy as jnp
 import numpy as np
 
-from mosmo.model.core import Molecule, Reaction
-from mosmo.model.reaction_network import ReactionNetwork
+from mosmo.model import Molecule, Reaction, ReactionNetwork
 
 ArrayT = Union[np.ndarray, jnp.ndarray]
 ParamT = Union[float, ArrayT]
@@ -59,7 +58,7 @@ class Ligands:
         ragged_indices = []
         width = 0
         for reaction in network.reactions:
-            indices = [network.reactants.position(ligand) for ligand in reaction_ligands.get(reaction, [])]
+            indices = [network.reactants.index_of(ligand) for ligand in reaction_ligands.get(reaction, [])]
             ragged_indices.append(indices)
             width = max(width, len(indices))
 

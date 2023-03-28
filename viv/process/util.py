@@ -3,7 +3,7 @@ from typing import Mapping, Union
 from vivarium.core.process import Process, Step
 from vivarium.core.types import State, Update
 
-from mosmo.model.core import Molecule
+from mosmo.model import Molecule
 
 
 class Clamp(Step):

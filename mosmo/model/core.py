@@ -2,7 +2,7 @@
 from dataclasses import dataclass
 from typing import List, Mapping, Optional, Set, Tuple
 
-from mosmo.model.base import DbXref, KbEntry
+from .base import KbEntry
 
 
 @dataclass

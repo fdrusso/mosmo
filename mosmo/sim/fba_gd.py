@@ -9,8 +9,7 @@ import jax.numpy as jnp
 import numpy as np
 import scipy.optimize
 
-from mosmo.model.core import Molecule, Reaction
-from mosmo.model.reaction_network import ReactionNetwork
+from mosmo.model import Molecule, Reaction, ReactionNetwork
 
 ArrayT = Union[np.ndarray, jnp.ndarray]
 
@@ -58,7 +57,7 @@ class SteadyStateObjective(Objective):
     def __init__(self, network: ReactionNetwork, intermediates: Iterable[Molecule], weight: float = 1.0):
         super().__init__(weight)
         self.network = network
-        self.indices = np.array([network.reactants.position(m) for m in intermediates], dtype=np.int32)
+        self.indices = np.array([network.reactants.index_of(m) for m in intermediates], dtype=np.int32)
 
     def residual(self, velocities: ArrayT, dmdt: ArrayT, params=None) -> jnp.ndarray:
         """Ignores velocities; returns dM/dt values for all configured intermediates."""
@@ -96,7 +95,7 @@ class ProductionObjective(Objective):
                  weight: float = 1.0):
         super().__init__(weight)
         self.network = network
-        self.indices = np.array([network.reactants.position(met) for met in targets], dtype=np.int32)
+        self.indices = np.array([network.reactants.index_of(met) for met in targets], dtype=np.int32)
         self.bounds = np.full((self.indices.shape[0], 2), [-np.inf, np.inf]).T
         self.update_params(targets)
 
@@ -139,7 +138,7 @@ class VelocityObjective(Objective):
                  weight: float = 1.0):
         super().__init__(weight)
         self.network = network
-        self.indices = np.array([network.reactions.position(rxn) for rxn in targets], dtype=np.int32)
+        self.indices = np.array([network.reactions.index_of(rxn) for rxn in targets], dtype=np.int32)
         self.bounds = np.full((self.indices.shape[0], 2), [-np.inf, np.inf]).T
         self.update_params(targets)
 
@@ -174,7 +173,7 @@ class ExclusionObjective(Objective):
                  weight: float = 1.0):
         super().__init__(weight)
         self.network = network
-        self.indices = np.array([network.reactions.position(rxn) for rxn in reactions], dtype=np.int32)
+        self.indices = np.array([network.reactions.index_of(rxn) for rxn in reactions], dtype=np.int32)
 
     def residual(self, velocities: ArrayT, dmdt: ArrayT, params=None) -> jnp.ndarray:
         return jnp.prod(velocities[self.indices], keepdims=True)

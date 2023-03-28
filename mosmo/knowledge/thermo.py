@@ -4,7 +4,7 @@ from typing import List, Mapping, Optional
 import equilibrator_api
 import numpy as np
 
-from mosmo.model.core import Molecule, Reaction
+from mosmo.model import Molecule, Reaction
 
 
 class Thermodynamics:

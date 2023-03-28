@@ -3,8 +3,8 @@ from typing import Union
 from vivarium.core.process import Process
 from vivarium.core.types import State, Update
 
-from mosmo.model.reaction_network import ReactionNetwork
-from mosmo.sim import FbaGd, ProductionObjective, ExclusionObjective
+from mosmo.model import ReactionNetwork
+from mosmo.sim.fba_gd import FbaGd, ProductionObjective, ExclusionObjective
 
 
 class FbaProcess(Process):
@@ -32,7 +32,7 @@ class FbaProcess(Process):
         self.pid_kd = self.parameters['pid_kd']
 
         # Set up the FBA problem. Everything not declared as a driver or boundary is an intermediate.
-        self.intermediates = [met for met in self.network.reactants() if met not in self.boundaries]
+        self.intermediates = [met for met in self.network.reactants if met not in self.boundaries]
         objectives = {
             'drivers': ProductionObjective(self.network, {met: 0.0 for met, target in self.drivers.items()})
         }
@@ -47,7 +47,7 @@ class FbaProcess(Process):
                 met.id: {'_default': 0.0, '_emit': True} for met in self.boundaries
             },
             'fluxes': {
-                rxn.id: {'_default': 0.0, '_updater': 'set', '_emit': True} for rxn in self.network.reactions()
+                rxn.id: {'_default': 0.0, '_updater': 'set', '_emit': True} for rxn in self.network.reactions
             },
             'pid_data': {
                 'error': {met.id: {'_default': 0.0, '_updater': 'set', '_emit': False} for met in self.drivers},
@@ -75,11 +75,11 @@ class FbaProcess(Process):
 
         # Report rates of change for boundary metabolites, and flux for all reactions.
         dmdts = {}
-        for met, dmdt in self.network.reactant_values(soln.dmdt).items():
+        for met, dmdt in self.network.reactants.unpack(soln.dmdt).items():
             if met in self.boundaries:
                 dmdts[met.id] = dmdt
         velocities = {}
-        for rxn, velocity in self.network.reaction_values(soln.velocities).items():
+        for rxn, velocity in self.network.reactions.unpack(soln.velocities).items():
             velocities[rxn.id] = velocity
 
         return {

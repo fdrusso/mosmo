@@ -17,8 +17,8 @@ from typing import Any, Iterable, Iterator, Mapping, Optional, Sequence, Tuple, 
 
 import numpy as np
 
-from mosmo.model.base import KbEntry
-from mosmo.model.core import Molecule, Reaction
+from .base import KbEntry
+from .core import Molecule, Reaction
 
 KE = TypeVar("KE", bound=KbEntry)
 
@@ -29,7 +29,7 @@ class Index(Sequence[KE]):
     An Index behaves as a list with set semantics, i.e. any item appears at most once and therefore has a unique
     numerical position. It is useful for moving back and forth between packed values in numerically-indexed vectors
     (e.g. numpy arrays) and the semantic objects represented at each position. Random access by position is supported
-    directly by subscripting. Random access by item is supported by position().
+    directly by subscripting. Random access by item is supported by index_of().
     """
 
     def __init__(self):
@@ -62,7 +62,7 @@ class Index(Sequence[KE]):
         for item in items:
             self.add(item)
 
-    def position(self, item: KE) -> Optional[int]:
+    def index_of(self, item: KE) -> Optional[int]:
         """Returns the numerical position of the item, or None if not present."""
         return self._index.get(item, None)
 
@@ -126,7 +126,7 @@ class ReactionNetwork:
             for reaction in self.reactions:
                 for reactant, coeff in reaction.stoichiometry.items():
                     # (reactant, reaction) is guaranteed unique
-                    s_matrix[self.reactants.position(reactant), self.reactions.position(reaction)] = coeff
+                    s_matrix[self.reactants.index_of(reactant), self.reactions.index_of(reaction)] = coeff
             self._s_matrix = s_matrix
         return self._s_matrix
 
