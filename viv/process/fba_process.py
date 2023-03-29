@@ -4,7 +4,7 @@ from vivarium.core.process import Process
 from vivarium.core.types import State, Update
 
 from mosmo.model import ReactionNetwork
-from mosmo.sim.fba_gd import FbaGd, ProductionObjective, ExclusionObjective
+from mosmo.calc.fba_gd import FbaGd, ProductionObjective, ExclusionObjective
 
 
 class FbaProcess(Process):
