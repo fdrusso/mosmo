@@ -11,7 +11,7 @@ authors = [
 license = {file = "LICENSE.txt"}
 description = "Molecular Systems Modeling toolkit"
 readme = "README.md"
-requires-python = ">=3.7"
+requires-python = ">=3.8"
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
@@ -22,10 +22,12 @@ classifiers = [
     'Topic :: Scientific/Engineering :: Bio-Informatics',
 ]
 dependencies = [
-    "jax~=0.3.15",
-    "numpy~=1.23.1",
-    "scipy~=1.8.1",
-    "pymongo~=4.2.0",
+    "equilibrator-api>=0.4.7",
+    "jax>=0.4.7",
+    "jaxlib>=0.4.7",
+    "numpy>=1.23",
+    "pymongo>=4.3",
+    "scipy>=1.10",
 ]
 
 [project.urls]
