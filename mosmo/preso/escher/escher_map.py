@@ -19,8 +19,8 @@ ESCHER_CSS = """
       font-size: 20px;
       fill: black;
     }
-    #eschermap #reactions .stoich {
-      font-size: 8px;
+    #eschermap #reactions .label.stoich {
+      font-size: 12px;
       fill: #334E75;
     }
     #eschermap #reactions path {
@@ -122,8 +122,10 @@ class MapSegment:
         self.to_node = all_nodes[segment_json["to_node_id"]]
         self.b1 = (segment_json["b1"]["x"], segment_json["b1"]["y"]) if segment_json["b1"] else None
         self.b2 = (segment_json["b2"]["x"], segment_json["b2"]["y"]) if segment_json["b2"] else None
+
         if isinstance(self.to_node, MapMetabolite):
             self.has_arrow = reaction.reversible or reaction.stoich[self.to_node.metabolite_id] > 0
+            self.count = abs(reaction.stoich[self.to_node.metabolite_id])
 
     def to_svg(self, padding=20., min_len=10.) -> _Element:
         start = self.from_node.center
@@ -135,12 +137,23 @@ class MapSegment:
             l = math.sqrt(dx * dx + dy * dy)
             ratio = min(l, max(min_len, l - self.to_node.size() - padding)) / l
             end = (self.b2[0] + dx * ratio, self.b2[1] + dy * ratio)
-            attrs = {"d": f"M {start[0]:.1f} {start[1]:.1f} C {self.b1[0]:.1f} {self.b1[1]:.1f} {self.b2[0]:.1f}" +
-                          f" {self.b2[1]:.1f} {end[0]:.1f} {end[1]:.1f}"}
 
+            path_attrs = {"d": f"M {start[0]:.1f} {start[1]:.1f} C {self.b1[0]:.1f} {self.b1[1]:.1f} {self.b2[0]:.1f}" +
+                               f" {self.b2[1]:.1f} {end[0]:.1f} {end[1]:.1f}"}
             if self.has_arrow:
-                attrs["marker-end"] = "url(#arrowhead)"
-            return _Element("path", attrs)
+                path_attrs["marker-end"] = "url(#arrowhead)"
+            path = _Element("path", path_attrs)
+
+            if self.count == 1:
+                return path
+            else:
+                stoich_label = _Element(
+                    "text",
+                    {"class": "label stoich",
+                     "x": end[0] + dy / l * 24,
+                     "y": end[1] - dx / l * 24},
+                    content=str(self.count))
+                return _Element("g", {}, children=[path, stoich_label])
         else:
             # Just a connector between "midmarker" and "multimarker". Uae a <path> so css finds it.
             return _Element("path", {"d": f"M {start[0]:.1f} {start[1]:.1f} L {end[0]:.1f} {end[1]:.1f}"})
