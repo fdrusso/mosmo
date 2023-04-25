@@ -120,7 +120,7 @@ def WhYlRd(minval=0, med=20, maxval=100):
     return Scale({minval: ("#fffaf0", 20), med: ("#f1c470", 30), maxval: ("#800000", 40)}, use_abs=True)
 
 
-def GeBu(minval=0, maxval=100):
+def GaBu(minval=0, maxval=100):
     """A simple aesthetic light-gray to blue scale."""
     return Scale({minval: ("#eeeeee", 5), maxval: ("#1f77b4", 20)}, use_abs=True)
 
@@ -389,15 +389,19 @@ class MapReaction:
 
 
 class MapSegment:
-    """A single connection tying a node to a reaction."""
+    """A single connection tying a metabolite to a reaction, or nodes within a reaction."""
 
     def __init__(self, reaction: MapReaction, segment_json, all_nodes: Mapping[str, MapNode]):
         self.reaction = reaction
+
         self.from_node = all_nodes[segment_json["from_node_id"]]
         self.to_node = all_nodes[segment_json["to_node_id"]]
         self.b1 = (segment_json["b1"]["x"], segment_json["b1"]["y"]) if segment_json["b1"] else None
         self.b2 = (segment_json["b2"]["x"], segment_json["b2"]["y"]) if segment_json["b2"] else None
-
+        # Some maps swap whether a metabolite node is "from" or "to". Swap if necessary, to standardize on "to".
+        if isinstance(self.from_node, MapMetabolite):
+            self.from_node, self.to_node = self.to_node, self.from_node
+            self.b1, self.b2 = self.b2, self.b1
         if isinstance(self.to_node, MapMetabolite):
             self.metabolite_id = self.to_node.metabolite_id
             self.count = reaction.stoich[self.metabolite_id]
@@ -405,19 +409,30 @@ class MapSegment:
         else:
             self.metabolite_id = None
 
-    def to_svg(self, padding=20., min_len=10.) -> Element:
+    def to_svg(self) -> Element:
         start = self.from_node.center
         end = self.to_node.center
         if isinstance(self.to_node, MapMetabolite):
             # Adjust the endpoint to approach the metabolite node but stop at a padded distance from it.
-            dx = end[0] - self.b2[0]
-            dy = end[1] - self.b2[1]
+            approach = self.b2 or start  # tolerate missing b2
+            dx = end[0] - approach[0]
+            dy = end[1] - approach[1]
             l = math.sqrt(dx * dx + dy * dy)
-            ratio = min(l, max(min_len, l - self.to_node.size() - padding)) / l
-            end = (self.b2[0] + dx * ratio, self.b2[1] + dy * ratio)
 
-            path_attrs = {"d": f"M {start[0]:.1f} {start[1]:.1f} C {self.b1[0]:.1f} {self.b1[1]:.1f} {self.b2[0]:.1f}" +
-                               f" {self.b2[1]:.1f} {end[0]:.1f} {end[1]:.1f}"}
+            # Some fine-tuning to try to match escher's existing behavior.
+            padding = 20. if self.has_arrow else 10.
+            minlen = 5.
+            _l = l - self.to_node.size() - padding
+            if _l < minlen:
+                _l = l - self.to_node.size()
+            ratio = _l / l
+            end = (approach[0] + dx * ratio, approach[1] + dy * ratio)
+
+            if self.b1 and self.b2:
+                path_attrs = {"d": f"M {start[0]:.1f} {start[1]:.1f} C {self.b1[0]:.1f} {self.b1[1]:.1f}" +
+                                   f" {self.b2[0]:.1f} {self.b2[1]:.1f} {end[0]:.1f} {end[1]:.1f}"}
+            else:
+                path_attrs = {"d": f"M {start[0]:.1f} {start[1]:.1f} L {end[0]:.1f} {end[1]:.1f}"}
             if self.has_arrow:
                 path_attrs["marker-end"] = "url(#arrowhead)"
             path = Element("path", path_attrs)
