@@ -1,7 +1,10 @@
 """Render an Escher map as SVG."""
 import math
 from dataclasses import dataclass, field
-from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
+from typing import Any, Dict, Mapping, Optional, Sequence, Tuple, Union
+
+from ipywidgets import Output
+from IPython.display import display, SVG
 
 
 @dataclass
@@ -232,13 +235,24 @@ class EscherMap:
     as text to a .svg file, which can be loaded into any standard drawing application, such as Inkscape or Illustrator.
     """
 
-    def __init__(self, map_json, reaction_scale: Optional[Scale] = None, metabolite_scale: Optional[Scale] = None):
+    def __init__(self,
+                 map_json,
+                 width: Optional[Union[str, float, int]] = None,
+                 height: Optional[Union[str, float, int]] = None,
+                 reaction_scale: Optional[Scale] = None,
+                 reaction_data: Optional[Mapping[str, float]] = None,
+                 metabolite_scale: Optional[Scale] = None,
+                 metabolite_data: Optional[Mapping[str, float]] = None):
+        self.width = width
+        self.height = height
         self.reaction_scale = reaction_scale
+        self.reaction_data = reaction_data if reaction_data is not None else {}
         self.metabolite_scale = metabolite_scale
+        self.metabolite_data = metabolite_data if metabolite_data is not None else {}
+        self._widget = None
 
-        canvas = map_json[1]["canvas"]
-        self.origin = (canvas["x"], canvas["y"])
-        self.size = (canvas["width"], canvas["height"])
+        self.origin = (map_json[1]["canvas"]["x"], map_json[1]["canvas"]["y"])
+        self.size = (map_json[1]["canvas"]["width"], map_json[1]["canvas"]["height"])
 
         # All nodes may be referred to by some reaction segment. Only metabolite nodes will be rendered.
         all_nodes = {}
@@ -257,8 +271,6 @@ class EscherMap:
 
     def to_svg(
             self,
-            width="20cm",
-            height=None,
             metabolite_data: Optional[Mapping[str, float]] = None,
             reaction_data: Optional[Mapping[str, float]] = None):
 
@@ -268,32 +280,34 @@ class EscherMap:
                           "height": self.size[1]})
 
         # Reactions with segments and labels, possibly styled according to data values
-        reaction_data = reaction_data or {}
+        if reaction_data is None:
+            reaction_data = self.reaction_data
         reactions = Element("g",
                             {"id": "reactions", "fill": "none", "stroke": "#334e75", "stroke-width": 10},
                             children=[
                                 reaction.to_svg(reaction_data.get(reaction.reaction_id))
                                 for reaction in self.reactions
                             ])
-        if reaction_data:
+        if len(reaction_data) > 0:  # evaluates correctly for pandas Series as well as dict
             # Change the default to de-emphasize elements with missing data
             reactions.attrs.update({"stroke": "#eeeeee", "stroke-width": 5})
 
         # Metabolite nodes, possibly styled according to data values
-        metabolite_data = metabolite_data or {}
+        if metabolite_data is None:
+            metabolite_data = self.metabolite_data
         metabolites = Element("g",
                               {"id": "metabolites", "fill": " #e0865b", "stroke": "#a24510", "stroke-width": 2},
                               children=[
                                   metabolite.to_svg(metabolite_data.get(metabolite.metabolite_id))
                                   for metabolite in self.metabolites
                               ])
-        if metabolite_data:
+        if len(metabolite_data) > 0:  # evaluates correctly for pandas Series as well as dict
             # Change the default to de-emphasize elements with missing data
             metabolites.attrs.update({"fill": "#eeeeee", "stroke": "none"})
 
         # Build the overall document structure and done.
         return Element("svg",
-                       {"width": width, "height": height,
+                       {"width": self.width, "height": self.height,
                         "viewBox": f"{self.origin[0]} {self.origin[1]} {self.size[0]} {self.size[1]}"},
                        children=[
                            DEFS,
@@ -305,6 +319,20 @@ class EscherMap:
                                        metabolites
                                    ])
                        ])
+
+    @property
+    def widget(self) -> Output:
+        if self._widget is None:
+            self._widget = Output()
+        return self._widget
+
+    def draw(self,
+             metabolite_data: Optional[Mapping[str, float]] = None,
+             reaction_data: Optional[Mapping[str, float]] = None) -> Output:
+        self.widget.clear_output(wait=True)
+        with self.widget:
+            display(SVG(self.to_svg(metabolite_data=metabolite_data, reaction_data=reaction_data).render()))
+        return self.widget
 
 
 class MapNode:

@@ -27,7 +27,7 @@
             "coefficient": -1
           },
           {
-            "bigg_id": "NAD",
+            "bigg_id": "NAD+",
             "coefficient": -1
           },
           {
@@ -505,7 +505,7 @@
             "coefficient": -1
           },
           {
-            "bigg_id": "NAD",
+            "bigg_id": "NAD+",
             "coefficient": -1
           },
           {
@@ -1173,7 +1173,7 @@
             "coefficient": -1
           },
           {
-            "bigg_id": "NADP",
+            "bigg_id": "NADP+",
             "coefficient": -1
           },
           {
@@ -1271,7 +1271,7 @@
             "coefficient": -1
           },
           {
-            "bigg_id": "NADP",
+            "bigg_id": "NADP+",
             "coefficient": -1
           },
           {
@@ -2071,8 +2071,8 @@
         "node_type": "metabolite",
         "x": 37.66947078704834,
         "y": 1267.064697265625,
-        "bigg_id": "NAD",
-        "name": "NAD",
+        "bigg_id": "NAD+",
+        "name": "NAD+",
         "label_x": -0.7007379531860352,
         "label_y": 1298.73486328125,
         "node_is_primary": false
@@ -2306,8 +2306,8 @@
         "node_type": "metabolite",
         "x": 37.78012752532959,
         "y": 2790.26318359375,
-        "bigg_id": "NAD",
-        "name": "NAD",
+        "bigg_id": "NAD+",
+        "name": "NAD+",
         "label_x": 10.78012752532959,
         "label_y": 2820.26318359375,
         "node_is_primary": false
@@ -2606,8 +2606,8 @@
         "node_type": "metabolite",
         "x": -162.21986484527588,
         "y": 65.16131591796884,
-        "bigg_id": "NADP",
-        "name": "NADP",
+        "bigg_id": "NADP+",
+        "name": "NADP+",
         "label_x": -205.41986484527587,
         "label_y": 45.161315917968835,
         "node_is_primary": false
@@ -2641,8 +2641,8 @@
         "node_type": "metabolite",
         "x": 827.5470622807771,
         "y": 159.6087660179311,
-        "bigg_id": "NADP",
-        "name": "NADP",
+        "bigg_id": "NADP+",
+        "name": "NADP+",
         "label_x": 842.5470622807771,
         "label_y": 159.6087660179311,
         "node_is_primary": false
