@@ -3,8 +3,8 @@ import math
 from dataclasses import dataclass, field
 from typing import Any, Dict, Mapping, Optional, Sequence, Tuple, Union
 
-from ipywidgets import Output
 from IPython.display import display, SVG
+from ipywidgets import Output
 
 
 @dataclass
