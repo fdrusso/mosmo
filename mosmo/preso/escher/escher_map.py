@@ -80,7 +80,7 @@ class Scale:
         # In range: bracket the value
         lb = self.stops[0]
         for ub in self.stops[1:]:
-            if ub[0] > value:
+            if ub[0] >= value:
                 break
             lb = ub
 
