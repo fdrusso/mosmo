@@ -32,9 +32,11 @@ class Index(Sequence[KE]):
     directly by subscripting. Random access by item is supported by index_of().
     """
 
-    def __init__(self):
+    def __init__(self, items: Optional[Iterable[KE]] = None):
         self._items = []
         self._index = {}
+        if items is not None:
+            self.update(items)
 
     def __len__(self) -> int:
         return len(self._items)
