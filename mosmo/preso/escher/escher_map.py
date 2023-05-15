@@ -225,14 +225,19 @@ class EscherMap:
 
     Usage:
         diagram1 = EscherMap(json.loads(<mapfile>)))
-        SVG(diagram1.to_svg(width="20cm").render())
+        diagram1.draw(width="20cm")
 
         diagram2 = EscherMap(json.loads(<mapfile>)), reaction_scale=GaBuRd(midval=1.5, maxval=10))
-        SVG(diagram2.to_svg(reaction_data=data, width="800px").render())
+        diagram2.draw(width="800px", reaction_data=<data>)
 
-    The structure produced by to_svg() is a standard (if limited) SVG document. Users with web development or CSS
-    experience can manipulate it however they wish to fine-tune its appearance before rendering. It can also be saved
-    as text to a .svg file, which can be loaded into any standard drawing application, such as Inkscape or Illustrator.
+    The draw() method renders the pathway to an
+    [Output](https://ipywidgets.readthedocs.io/en/stable/examples/Output%20Widget.html) widget, which displays
+    automatically in a jupyter notebook, or can be composed with other widgets as needed.
+
+    For greater control, use to_svg(), which returns a standard (if limited) SVG document structure. Users with web
+    development or CSS experience can manipulate this to fine-tune its appearance. Calling render() on the document
+    returns SVG text, which can be saved to a .svg file, and loaded into a drawing application such as Inkscape or
+    Illustrator.
     """
 
     def __init__(self,
