@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mosmo"
-version = "0.0.2"
+version = "0.0.3"
 authors = [
   { name="Frank D Russo", email="fdrusso.42@gmail.com" },
 ]
@@ -23,7 +23,7 @@ classifiers = [
 ]
 dependencies = [
     "equilibrator-api>=0.4.7",
-    "ipywidgets",
+    "ipywidgets>=8.0",
     "jax>=0.4.7",
     "jaxlib>=0.4.7",
     "numpy>=1.23",
