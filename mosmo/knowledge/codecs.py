@@ -65,13 +65,13 @@ class MappingCodec(Codec):
                  mapping_type: Callable[[Mapping], Mapping] = dict):
         self.mapping_type = mapping_type
         self.key_codec = key_codec or AS_IS
-        self.value_code = value_codec or AS_IS
+        self.value_codec = value_codec or AS_IS
 
     def encode(self, mapping):
-        return [[self.key_codec.encode(k), self.value_code.encode(v)] for k, v in mapping.items()]
+        return [[self.key_codec.encode(k), self.value_codec.encode(v)] for k, v in mapping.items()]
 
     def decode(self, doc):
-        return self.mapping_type({self.key_codec.decode(k): self.value_code.decode(v) for k, v in doc})
+        return self.mapping_type({self.key_codec.decode(k): self.value_codec.decode(v) for k, v in doc})
 
 
 class ObjectCodec(Codec):
