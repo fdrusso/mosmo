@@ -13,7 +13,7 @@ TEST_CANON = Dataset("test", "canon", KbEntry)
 
 
 class TestSession:
-    """Tests for in-memory Session API, without underlying mongo DB."""
+    """Tests for Session API, with or without underlying mongo DB."""
 
     def mem_session(self) -> Session:
         """Sets up an in-memory Session without an underlying mongo DB."""
@@ -28,6 +28,12 @@ class TestSession:
             return Session(client=client, schema={"TEST": TEST})
         except ConnectionFailure:
             return None
+
+    def test_DatasetIsMember(self):
+        """The session provides access to its schema via instance members."""
+        session = self.mem_session()
+        assert session.schema["TEST"] is TEST
+        assert session.TEST is TEST
 
     def test_PutGet(self):
         """The KB caches and retrieves basic entries."""
@@ -46,7 +52,6 @@ class TestSession:
         obj = KbEntry("obj", name="Test object")
         session.put(TEST, obj)
         assert session.deref(DbXref("TEST", "obj")) is obj
-        assert session(DbXref("TEST", "obj")) is obj
 
     def test_DerefStr(self):
         """The KB can dereference an xref in string form."""
@@ -54,7 +59,17 @@ class TestSession:
         obj = KbEntry("17", name="Test object")
         session.put(TEST, obj)
         assert session.deref("TEST:17") is obj
-        assert session("TEST:17") is obj
+
+    def test_ShortcutAccess(self):
+        """Tests the KB's "shortcut" access pattern."""
+        session = self.mem_session()
+        obj1 = KbEntry("obj1", name="Test object 1")
+        obj2 = KbEntry("obj2", name="Test object 2")
+        session.put(TEST, obj1)
+        session.put(TEST, obj2)
+        assert session("obj1") is obj1
+        assert session("TEST:obj2") is obj2
+        assert session("never heard of him") is None
 
     def test_PutGetDeref_Canonical(self):
         """The KB retrieves preferentially from a canonical dataset."""
