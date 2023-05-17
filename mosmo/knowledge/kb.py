@@ -2,7 +2,7 @@
 from dataclasses import dataclass
 from typing import Any, Dict, List, Mapping, Optional, Type
 
-import pymongo
+from pymongo import MongoClient
 
 from mosmo.knowledge import codecs
 from mosmo.model.base import DbXref, KbEntry
@@ -21,9 +21,15 @@ class Dataset:
 
 
 class Session:
-    def __init__(self, uri: str = 'mongodb://127.0.0.1:27017', schema: Mapping[str, Dataset] = None):
-        self._uri = uri
-        self._client: Optional[pymongo.MongoClient] = None
+    def __init__(self, client: Optional[MongoClient] = None, schema: Mapping[str, Dataset] = None):
+        """Initializes a KB session.
+
+        Args:
+            client: connection to a local or remote MongoDB server. If None,the session performs as an in-memory cache
+                and no data is persisted.
+            schema: Dataset definitions for the contents of the KB.
+        """
+        self.client = client
         self.schema: Dict[str, Dataset] = {}
         self.canon: Dict[Type[KbEntry], Dataset] = {}
         self._cache: Dict[Dataset, Dict[Any, KbEntry]] = {}
@@ -49,14 +55,8 @@ class Session:
         else:
             raise ValueError(f'Name collision: {name} is an existing attribute of Session')
 
-    @property
-    def client(self) -> pymongo.MongoClient:
-        """The session's connection to the underlying datastore."""
-        if self._client is None:
-            self._client = pymongo.MongoClient(self._uri)
-        return self._client
-
     def _cache_value(self, dataset: Dataset, doc) -> KbEntry:
+        """Decodes a document from storage, into the in-memory cache for the specified dataset."""
         if doc['_id'] not in self._cache[dataset]:
             codec = dataset.codec or codecs.CODECS[dataset.content_type]
             self._cache[dataset][doc['_id']] = codec.decode(doc)
@@ -64,7 +64,7 @@ class Session:
 
     def get(self, dataset: Dataset, id) -> Optional[KbEntry]:
         """Retrieves the specified entry from the KB by ID, if it exists."""
-        if id not in self._cache[dataset]:
+        if id not in self._cache[dataset] and self.client is not None:
             doc = self.client[dataset.db][dataset.collection].find_one(id)
             if doc:
                 self._cache_value(dataset, doc)
@@ -78,9 +78,10 @@ class Session:
             # Even when bypassing the cache, make sure the cache itself is not now stale.
             self._cache[dataset].pop(obj.id, None)
 
-        codec = dataset.codec or codecs.CODECS[dataset.content_type]
-        doc = codec.encode(obj)
-        self.client[dataset.db][dataset.collection].replace_one({'_id': obj.id}, doc, upsert=True)
+        if self.client is not None:
+            codec = dataset.codec or codecs.CODECS[dataset.content_type]
+            doc = codec.encode(obj)
+            self.client[dataset.db][dataset.collection].replace_one({'_id': obj.id}, doc, upsert=True)
 
     def find(self, dataset: Dataset, name: str, include_aka=True) -> List[KbEntry]:
         """Finds any number of KB entries matching the given name, optionally as an AKA."""
@@ -220,9 +221,9 @@ class LookupCodec(codecs.Codec):
         return self._source.get(self._dataset, id)
 
 
-def configure_kb(uri=None):
+def configure_kb(uri: str = 'mongodb://127.0.0.1:27017'):
     """Returns a Session object configured to access all reference and canonical KB datasets."""
-    session = Session(uri=uri)
+    session = Session(MongoClient(uri))
 
     # Reference datasets (local copies of external sources)
     session.define_dataset('EC', Dataset('ref', 'EC', KbEntry))
