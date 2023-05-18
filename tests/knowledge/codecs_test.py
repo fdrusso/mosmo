@@ -46,6 +46,20 @@ class TestCodec:
         restored = codec.decode(json.loads(enc))
         assert restored == orig
 
+    def test_ObjectCodec_Rename(self):
+        """Object members are renamed appropriately in encoded documents."""
+        orig = _Obj(
+            _int=42,
+            _float=3.14,
+            _str="foobarbas",
+        )
+        codec = codecs.ObjectCodec(_Obj, rename={"_int": "someint"})
+        doc = codec.encode(orig)
+        enc = json.dumps(doc)
+        restored = codec.decode(json.loads(enc))
+        assert doc["someint"] == orig._int
+        assert restored == orig
+
     def test_ListCodec_Basic(self):
         orig = ["person", "woman", "man", "camera", "tv"]
         codec = codecs.ListCodec()

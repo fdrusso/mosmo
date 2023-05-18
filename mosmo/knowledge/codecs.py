@@ -34,6 +34,7 @@ class Codec(abc.ABC):
 
 class AsIsCodec(Codec):
     """No-op codec passes everything through encode and decode as-is."""
+
     def encode(self, obj):
         return obj
 
@@ -46,6 +47,7 @@ AS_IS = AsIsCodec()
 
 class ListCodec(Codec):
     """Encodes/decodes a python iterable type to a json-compatible list."""
+
     def __init__(self, item_codec: Codec = None, list_type: Callable[[Iterable], Iterable] = list):
         self.list_type = list_type
         self.item_codec = item_codec or AS_IS
@@ -59,6 +61,7 @@ class ListCodec(Codec):
 
 class MappingCodec(Codec):
     """Encodes/decodes a python mapping type to a json list of tuples."""
+
     def __init__(self,
                  key_codec: Codec = None,
                  value_codec: Codec = None,
@@ -76,20 +79,29 @@ class MappingCodec(Codec):
 
 class ObjectCodec(Codec):
     """Encodes/decodes a python instance to a json-compatible dict."""
-    def __init__(self, clazz, codec_map: Mapping[str, Codec] = None):
+
+    def __init__(self, clazz, codec_map: Mapping[str, Codec] = None, rename: Mapping[str, str] = None):
         self.clazz = clazz
         self.codec_map = codec_map or {}
+        self.encoded_name = {}
+        self.decoded_name = {}
+        if rename:
+            for decoded, encoded in rename.items():
+                self.encoded_name[decoded] = encoded
+                self.decoded_name[encoded] = decoded
 
     def encode(self, obj):
         doc = {}
         for k, v in obj.__dict__.items():
             if v is not None:
+                k = self.encoded_name.get(k, k)
                 doc[k] = self.codec_map.get(k, AS_IS).encode(v)
         return doc
 
     def decode(self, doc):
         args = {}
         for k, v in doc.items():
+            k = self.decoded_name.get(k, k)
             args[k] = self.codec_map.get(k, AS_IS).decode(v)
         return self.clazz(**args)
 
@@ -100,6 +112,7 @@ class ObjectIdCodec(Codec):
     This is useful for cases where the document includes only a reference to the object, but the caller either does
     not know, or does not care about the details of that object.
     """
+
     def __init__(self, clazz):
         self.clazz = clazz
 
@@ -107,7 +120,7 @@ class ObjectIdCodec(Codec):
         return obj.id
 
     def decode(self, id):
-        return self.clazz(_id=id)
+        return self.clazz(id)
 
 
 MOL_ID = ObjectIdCodec(Molecule)
@@ -119,28 +132,40 @@ CODECS = {
     Specialization: ObjectCodec(Specialization, {'form': ListCodec(list_type=tuple)}),
 }
 
-CODECS[KbEntry] = ObjectCodec(KbEntry, {
-    'xrefs': ListCodec(item_codec=CODECS[DbXref], list_type=set),
-})
+CODECS[KbEntry] = ObjectCodec(
+    KbEntry,
+    codec_map={'xrefs': ListCodec(item_codec=CODECS[DbXref], list_type=set)},
+    rename={"id": "_id"}
+)
 
-CODECS[Molecule] = ObjectCodec(Molecule, {
-    'xrefs': ListCodec(item_codec=CODECS[DbXref], list_type=set),
-    'variations': ListCodec(item_codec=CODECS[Variation]),
-    'canonical_form': CODECS[Specialization],
-    'default_form': CODECS[Specialization],
-})
+CODECS[Molecule] = ObjectCodec(
+    Molecule,
+    codec_map={
+        'xrefs': ListCodec(item_codec=CODECS[DbXref], list_type=set),
+        'variations': ListCodec(item_codec=CODECS[Variation]),
+        'canonical_form': CODECS[Specialization],
+        'default_form': CODECS[Specialization],
+    },
+    rename={"id": "_id"}
+)
 
-CODECS[Reaction] = ObjectCodec(Reaction, {
-    'xrefs': ListCodec(item_codec=CODECS[DbXref], list_type=set),
-    'stoichiometry': MappingCodec(key_codec=MOL_ID),
-    'catalyst': MOL_ID,
-})
+CODECS[Reaction] = ObjectCodec(
+    Reaction,
+    codec_map={
+        'xrefs': ListCodec(item_codec=CODECS[DbXref], list_type=set),
+        'stoichiometry': MappingCodec(key_codec=MOL_ID),
+        'catalyst': MOL_ID,
+    },
+    rename={"id": "_id"}
+)
 
-CODECS[Pathway] = ObjectCodec(Pathway, {
-    'xrefs': ListCodec(item_codec=CODECS[DbXref], list_type=set),
-    'metabolites': ListCodec(item_codec=MOL_ID),
-    'steps': ListCodec(item_codec=RXN_ID),
-    'enzymes': ListCodec(item_codec=MOL_ID),
-})
-
-
+CODECS[Pathway] = ObjectCodec(
+    Pathway,
+    codec_map={
+        'xrefs': ListCodec(item_codec=CODECS[DbXref], list_type=set),
+        'metabolites': ListCodec(item_codec=MOL_ID),
+        'steps': ListCodec(item_codec=RXN_ID),
+        'enzymes': ListCodec(item_codec=MOL_ID),
+    },
+    rename={"id": "_id"}
+)

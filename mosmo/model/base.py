@@ -28,8 +28,11 @@ class DbXref:
 @dataclass
 class KbEntry:
     """Attributes common to first-class entities, items, or concepts in the knowledge base."""
-    _id: str
-    """Immutable unique identifier."""
+    id: str
+    """Persistent unique identifier."""
+
+    db: Optional[str] = None
+    """The database/dataset in which this is an entry."""
 
     name: str = ''
     """Preferred name of the entry. Brief but descriptive, suitable for lists."""
@@ -46,17 +49,25 @@ class KbEntry:
     xrefs: Optional[Set[DbXref]] = None
     """Cross-references to (essentially) the same entry in other databases."""
 
+    def ref(self) -> DbXref:
+        """A DbXref that refers to this KbEntry."""
+        return DbXref(db=self.db, id=self.id)
+
+    def same_as(self, other) -> bool:
+        """Reusable by subclasses to simplify implementation of __eq__."""
+        return (
+            type(self) == type(other) and
+            self.id == other.id and
+            (self.db is None and other.db is None or self.db == other.db)
+        )
+
     def __eq__(self, other):
-        return type(self) == type(other) and self._id == other._id
+        return self.same_as(other)
 
     def __hash__(self):
-        return hash((type(self), self._id))
-
-    @property
-    def id(self):
-        return self._id
+        return hash((type(self), self.id, self.db))
 
     @property
     def label(self):
         """Compact designator of the entry, e.g. for plot labels. Shorthand is preferred, otherwise ID."""
-        return self.shorthand or self._id
+        return self.shorthand or self.id

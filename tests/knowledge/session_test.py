@@ -8,8 +8,8 @@ from pymongo.errors import ConnectionFailure
 from mosmo.knowledge.kb import Session, Dataset
 from mosmo.model import KbEntry, DbXref
 
-TEST = Dataset("test", "test", KbEntry)
-TEST_CANON = Dataset("test", "canon", KbEntry)
+TEST = Dataset("TEST", "test", "test", KbEntry)
+TEST_CANON = Dataset("CANON", "test", "canon", KbEntry)
 
 
 class TestSession:
@@ -17,7 +17,7 @@ class TestSession:
 
     def mem_session(self) -> Session:
         """Sets up an in-memory Session without an underlying mongo DB."""
-        return Session(client=None, schema={"TEST": TEST})
+        return Session(client=None, schema={TEST.id: TEST})
 
     def db_session(self) -> Optional[Session]:
         """Sets up a Session with an underlying mongo DB and a fresh /test space."""
@@ -25,7 +25,7 @@ class TestSession:
         try:
             with timeout(2):
                 client.drop_database("test")
-            return Session(client=client, schema={"TEST": TEST})
+            return Session(client=client, schema={TEST.id: TEST})
         except ConnectionFailure:
             return None
 
@@ -51,14 +51,14 @@ class TestSession:
         session = self.mem_session()
         obj = KbEntry("obj", name="Test object")
         session.put(TEST, obj)
-        assert session.deref(DbXref("TEST", "obj")) is obj
+        assert session.deref(obj.ref()) is obj
 
     def test_DerefStr(self):
         """The KB can dereference an xref in string form."""
         session = self.mem_session()
         obj = KbEntry("17", name="Test object")
         session.put(TEST, obj)
-        assert session.deref("TEST:17") is obj
+        assert session.deref(str(obj.ref())) is obj
 
     def test_ShortcutAccess(self):
         """Tests the KB's "shortcut" access pattern."""
@@ -74,7 +74,7 @@ class TestSession:
     def test_PutGetDeref_Canonical(self):
         """The KB retrieves preferentially from a canonical dataset."""
         session = self.mem_session()
-        session.define_dataset("CANON", Dataset("test", "canon", KbEntry), canonical=True)
+        session.define_dataset(TEST_CANON.id, TEST_CANON, canonical=True)
 
         # Two objects with the same id, but in different datasets
         x1 = KbEntry("x", name="Test object x")
@@ -128,3 +128,25 @@ class TestSession:
         results = session.xref(TEST, "BAR:bas")
         assert len(results) == 1
         assert results[0] is obj
+
+    def test_UpdateDb(self):
+        """An entry's db attribute is updated to reflect where it is persisted."""
+        session = self.mem_session()
+        obj = KbEntry("obj", name="The object.")
+        assert obj.db is None
+        session.put(TEST, obj)
+        assert obj.db == TEST.id
+
+    def test_PutCopy(self):
+        """Persisting an entry to a new dataset makes a copy."""
+        session = self.mem_session()
+        session.define_dataset("METOO", Dataset("METOO", "test", "metoo", KbEntry))
+        obj = KbEntry("obj", name="The object.")
+        session.put(TEST, obj)
+        assert session("TEST:obj") is obj
+
+        session.put(session.METOO, obj)
+        clone = session("METOO:obj")
+        assert clone is not None
+        assert clone.db == session.METOO.id
+        assert clone != obj

@@ -62,7 +62,7 @@ class Molecule(KbEntry):
     """
 
     def __eq__(self, other):
-        return type(self) == type(other) and self.id == other.id
+        return self.same_as(other)
 
     def __hash__(self):
         return hash((type(self), self.id))
@@ -99,7 +99,7 @@ class Reaction(KbEntry):
         return ' + '.join(lhs) + arrow + ' + '.join(rhs)
 
     def __eq__(self, other):
-        return type(self) == type(other) and self.id == other.id
+        return self.same_as(other)
 
     def __hash__(self):
         return hash((type(self), self.id))
@@ -118,7 +118,7 @@ class Pathway(KbEntry):
     enzymes: Set[Molecule] = None
 
     def __eq__(self, other):
-        return type(self) == type(other) and self.id == other.id
+        return self.same_as(other)
 
     def __hash__(self):
         return hash((type(self), self.id))

@@ -1,4 +1,5 @@
 """Knowledge Base for Molecular Systems Modeling."""
+import copy
 from dataclasses import dataclass
 from typing import Any, Dict, List, Mapping, Optional, Type
 
@@ -11,13 +12,14 @@ from mosmo.model.core import Molecule, Reaction, Pathway
 
 @dataclass(eq=True, order=True, frozen=True)
 class Dataset:
-    db: str
+    id: str
+    client_db: str
     collection: str
     content_type: Type[KbEntry]
     codec: codecs.Codec = None
 
     def __repr__(self):
-        return f'{self.db}.{self.collection} [{self.content_type.__name__}]'
+        return f'{self.client_db}.{self.collection} [{self.content_type.__name__}]'
 
 
 class Session:
@@ -62,38 +64,58 @@ class Session:
             self._cache[dataset][doc['_id']] = codec.decode(doc)
         return self._cache[dataset][doc['_id']]
 
-    def get(self, dataset: Dataset, id) -> Optional[KbEntry]:
+    def get(self, dataset: Dataset, id: str) -> Optional[KbEntry]:
         """Retrieves the specified entry from the KB by ID, if it exists."""
         if id not in self._cache[dataset] and self.client is not None:
-            doc = self.client[dataset.db][dataset.collection].find_one(id)
+            doc = self.client[dataset.client_db][dataset.collection].find_one(id)
             if doc:
                 self._cache_value(dataset, doc)
         return self._cache[dataset].get(id)
 
-    def put(self, dataset: Dataset, obj, bypass_cache=False):
-        """Persists the object to the KB, in the given dataset."""
+    def put(self, dataset: Dataset, entry: KbEntry, bypass_cache: bool = False):
+        """Persists an entry to the KB, in the given dataset.
+
+        The entry's db attribute reflects the dataset where it is persisted. If it is not currently associated with a
+        dataset, its db attribute will be updated. If it is already part of a different dataset, a copy will be
+        persisted instead.
+
+        Note that changing an entry's db attribute changes how it tests equality, and how its hash is calculated.
+        Use with caution.
+
+        Args:
+             dataset: the dataset where the entry will be persisted.
+             entry: the entry to be persisted.
+             bypass_cache: if True, the entry is persisted straight to the underlying databases, bypassing the session
+                cache. May save session memory if a large number of entries are persisted.
+        """
+        if entry.db is None:
+            entry.db = dataset.id
+        elif entry.db != dataset.id:
+            entry = copy.deepcopy(entry)
+            entry.db = dataset.id
+
         if not bypass_cache:
-            self._cache[dataset][obj.id] = obj
+            self._cache[dataset][entry.id] = entry
         else:
             # Even when bypassing the cache, make sure the cache itself is not now stale.
-            self._cache[dataset].pop(obj.id, None)
+            self._cache[dataset].pop(entry.id, None)
 
         if self.client is not None:
             codec = dataset.codec or codecs.CODECS[dataset.content_type]
-            doc = codec.encode(obj)
-            self.client[dataset.db][dataset.collection].replace_one({'_id': obj.id}, doc, upsert=True)
+            doc = codec.encode(entry)
+            self.client[dataset.client_db][dataset.collection].replace_one({'_id': entry.id}, doc, upsert=True)
 
     def find(self, dataset: Dataset, name: str, include_aka=True) -> List[KbEntry]:
         """Finds any number of KB entries matching the given name, optionally as an AKA."""
         found = set()
         docs = []
-        for doc in self.client[dataset.db][dataset.collection].find(
+        for doc in self.client[dataset.client_db][dataset.collection].find(
                 {'name': name}).collation({'locale': 'en', 'strength': 1}):
             if doc['_id'] not in found:
                 docs.append(doc)
                 found.add(doc['_id'])
         if include_aka:
-            for doc in self.client[dataset.db][dataset.collection].find(
+            for doc in self.client[dataset.client_db][dataset.collection].find(
                     {'aka': name}).collation({'locale': 'en', 'strength': 1}):
                 if doc['_id'] not in found:
                     docs.append(doc)
@@ -108,12 +130,12 @@ class Session:
             query['xrefs.db'] = xref.db
 
         results = []
-        for doc in self.client[dataset.db][dataset.collection].find(query).collation({'locale': 'en', 'strength': 1}):
+        for doc in self.client[dataset.client_db][dataset.collection].find(query).collation({'locale': 'en', 'strength': 1}):
             results.append(self._cache_value(dataset, doc))
         return results
 
     def clear_cache(self, *datasets):
-        """Clears cached objects for select datasets, or all datasets."""
+        """Clears cached entries for select datasets, or all datasets."""
         if not datasets:
             datasets = self.schema.values()
         for dataset in datasets:
@@ -129,7 +151,7 @@ class Session:
             raise TypeError(f"{q} cannot be converted to DbXref.")
 
     def deref(self, q) -> Optional[KbEntry]:
-        """Retrieves the object referred to by a DbXref or its string representation."""
+        """Retrieves the entry referred to by a DbXref or its string representation."""
         xref = self.as_xref(q)
         if xref.db in self.schema:
             return self.get(self.schema[xref.db], xref.id)
@@ -166,17 +188,17 @@ class Session:
     def __call__(self, q) -> Optional[KbEntry]:
         """Convenience interface to the KB.
 
-        Attempts to return a unique object as intended by the caller. For unambiguous queries this works well, e.g.:
+        Attempts to return a unique entry as intended by the caller. For unambiguous queries this works well, e.g.:
         - Fully specified DB:ID xref (as a DbXref or a string)
-        - Unique ID of an object in a canonical dataset
-        - ID of an object in any dataset, provided it is unique across all datasets
+        - Unique ID of an entry in a canonical dataset
+        - ID of an entry in any dataset, provided it is unique across all datasets
 
         This call will always return the first entry it finds, so if the conditions above do not hold, the result may
         not be as expected. CALLER BEWARE.
 
         This interface is provided to reduce friction in accessing KB entries interactively. Since multiple calls to the
         underlying DB may be needed to resolve any query, this is unlikely to be the most efficient way to access large
-        numbers of objects. Consider using more specific methods as appropriate.
+        numbers of entries. Consider using more specific methods as appropriate.
 
         Args:
             q: a KbEntry, DbXref, or string sufficient to identify a unique entry in the knowledge base.
@@ -214,8 +236,8 @@ class LookupCodec(codecs.Codec):
         self._source = source
         self._dataset = dataset
 
-    def encode(self, obj):
-        return obj.id
+    def encode(self, entry):
+        return entry.id
 
     def decode(self, id):
         return self._source.get(self._dataset, id)
@@ -226,23 +248,23 @@ def configure_kb(uri: str = 'mongodb://127.0.0.1:27017'):
     session = Session(MongoClient(uri))
 
     # Reference datasets (local copies of external sources)
-    session.define_dataset('EC', Dataset('ref', 'EC', KbEntry))
-    session.define_dataset('GO', Dataset('ref', 'GO', KbEntry))
-    session.define_dataset('CHEBI', Dataset('ref', 'CHEBI', Molecule))
-    session.define_dataset('RHEA', Dataset('ref', 'RHEA', Reaction, codecs.ObjectCodec(Reaction, {
+    session.define_dataset('EC', Dataset('EC', 'ref', 'EC', KbEntry))
+    session.define_dataset('GO', Dataset('GO', 'ref', 'GO', KbEntry))
+    session.define_dataset('CHEBI', Dataset('CHEBI', 'ref', 'CHEBI', Molecule))
+    session.define_dataset('RHEA', Dataset('RHEA', 'ref', 'RHEA', Reaction, codecs.ObjectCodec(Reaction, {
         'xrefs': codecs.ListCodec(item_codec=codecs.CODECS[DbXref], list_type=set),
         'stoichiometry': codecs.MappingCodec(key_codec=LookupCodec(session, session.CHEBI)),
         'catalyst': codecs.MOL_ID,
     })))
 
     # The KB proper - compiled, reconciled, integrated
-    session.define_dataset('compounds', Dataset('kb', 'compounds', Molecule), canonical=True)
-    session.define_dataset('reactions', Dataset('kb', 'reactions', Reaction, codecs.ObjectCodec(Reaction, {
+    session.define_dataset('compounds', Dataset('compounds', 'kb', 'compounds', Molecule), canonical=True)
+    session.define_dataset('reactions', Dataset('reactions', 'kb', 'reactions', Reaction, codecs.ObjectCodec(Reaction, {
         'xrefs': codecs.ListCodec(item_codec=codecs.CODECS[DbXref], list_type=set),
         'stoichiometry': codecs.MappingCodec(key_codec=LookupCodec(session, session.compounds)),
         'catalyst': codecs.MOL_ID,
     })), canonical=True)
-    session.define_dataset('pathways', Dataset('kb', 'pathways', Pathway, codecs.ObjectCodec(Pathway, {
+    session.define_dataset('pathways', Dataset('pathways', 'kb', 'pathways', Pathway, codecs.ObjectCodec(Pathway, {
         'xrefs': codecs.ListCodec(item_codec=codecs.CODECS[DbXref], list_type=set),
         'metabolites': codecs.ListCodec(item_codec=LookupCodec(session, session.compounds)),
         'steps': codecs.ListCodec(item_codec=LookupCodec(session, session.reactions)),
