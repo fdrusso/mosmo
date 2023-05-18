@@ -61,7 +61,10 @@ class Session:
         """Decodes a document from storage, into the in-memory cache for the specified dataset."""
         if doc['_id'] not in self._cache[dataset]:
             codec = dataset.codec or codecs.CODECS[dataset.content_type]
-            self._cache[dataset][doc['_id']] = codec.decode(doc)
+            entry = codec.decode(doc)
+            if entry.db is None:
+                entry.db = dataset.id
+            self._cache[dataset][doc['_id']] = entry
         return self._cache[dataset][doc['_id']]
 
     def get(self, dataset: Dataset, id: str) -> Optional[KbEntry]:
@@ -130,7 +133,8 @@ class Session:
             query['xrefs.db'] = xref.db
 
         results = []
-        for doc in self.client[dataset.client_db][dataset.collection].find(query).collation({'locale': 'en', 'strength': 1}):
+        for doc in self.client[dataset.client_db][dataset.collection].find(query).collation(
+                {'locale': 'en', 'strength': 1}):
             results.append(self._cache_value(dataset, doc))
         return results
 
@@ -232,6 +236,7 @@ class Session:
 
 class LookupCodec(codecs.Codec):
     """Session-aware Codec encoding a KbEntry by its ID, and decoding by looking it up in a given dataset."""
+
     def __init__(self, source, dataset):
         self._source = source
         self._dataset = dataset
@@ -251,23 +256,35 @@ def configure_kb(uri: str = 'mongodb://127.0.0.1:27017'):
     session.define_dataset('EC', Dataset('EC', 'ref', 'EC', KbEntry))
     session.define_dataset('GO', Dataset('GO', 'ref', 'GO', KbEntry))
     session.define_dataset('CHEBI', Dataset('CHEBI', 'ref', 'CHEBI', Molecule))
-    session.define_dataset('RHEA', Dataset('RHEA', 'ref', 'RHEA', Reaction, codecs.ObjectCodec(Reaction, {
-        'xrefs': codecs.ListCodec(item_codec=codecs.CODECS[DbXref], list_type=set),
-        'stoichiometry': codecs.MappingCodec(key_codec=LookupCodec(session, session.CHEBI)),
-        'catalyst': codecs.MOL_ID,
-    })))
+    session.define_dataset('RHEA', Dataset('RHEA', 'ref', 'RHEA', Reaction, codecs.ObjectCodec(
+        Reaction,
+        codec_map={
+            'xrefs': codecs.ListCodec(item_codec=codecs.CODECS[DbXref], list_type=set),
+            'stoichiometry': codecs.MappingCodec(key_codec=LookupCodec(session, session.CHEBI)),
+            'catalyst': codecs.MOL_ID,
+        },
+        rename={"id": "_id"}
+    )))
 
     # The KB proper - compiled, reconciled, integrated
     session.define_dataset('compounds', Dataset('compounds', 'kb', 'compounds', Molecule), canonical=True)
-    session.define_dataset('reactions', Dataset('reactions', 'kb', 'reactions', Reaction, codecs.ObjectCodec(Reaction, {
-        'xrefs': codecs.ListCodec(item_codec=codecs.CODECS[DbXref], list_type=set),
-        'stoichiometry': codecs.MappingCodec(key_codec=LookupCodec(session, session.compounds)),
-        'catalyst': codecs.MOL_ID,
-    })), canonical=True)
-    session.define_dataset('pathways', Dataset('pathways', 'kb', 'pathways', Pathway, codecs.ObjectCodec(Pathway, {
-        'xrefs': codecs.ListCodec(item_codec=codecs.CODECS[DbXref], list_type=set),
-        'metabolites': codecs.ListCodec(item_codec=LookupCodec(session, session.compounds)),
-        'steps': codecs.ListCodec(item_codec=LookupCodec(session, session.reactions)),
-        'enzymes': codecs.ListCodec(item_codec=codecs.MOL_ID),
-    })), canonical=True)
+    session.define_dataset('reactions', Dataset('reactions', 'kb', 'reactions', Reaction, codecs.ObjectCodec(
+        Reaction,
+        codec_map={
+            'xrefs': codecs.ListCodec(item_codec=codecs.CODECS[DbXref], list_type=set),
+            'stoichiometry': codecs.MappingCodec(key_codec=LookupCodec(session, session.compounds)),
+            'catalyst': codecs.MOL_ID,
+        },
+        rename={"id": "_id"}
+    )), canonical=True)
+    session.define_dataset('pathways', Dataset('pathways', 'kb', 'pathways', Pathway, codecs.ObjectCodec(
+        Pathway,
+        codec_map={
+            'xrefs': codecs.ListCodec(item_codec=codecs.CODECS[DbXref], list_type=set),
+            'metabolites': codecs.ListCodec(item_codec=LookupCodec(session, session.compounds)),
+            'steps': codecs.ListCodec(item_codec=LookupCodec(session, session.reactions)),
+            'enzymes': codecs.ListCodec(item_codec=codecs.MOL_ID),
+        },
+        rename={"id": "_id"}
+    )), canonical=True)
     return session
