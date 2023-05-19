@@ -3,13 +3,20 @@ from dataclasses import dataclass
 from typing import List, Mapping, Optional, Set, Type, Union
 
 
-@dataclass(eq=True, frozen=True)
+@dataclass(frozen=True)
 class Datasource:
     """Part of the ecosystem hosting biological data."""
     id: str
     name: Optional[str] = None
     home: Optional[str] = None
     urlpat: Optional[Mapping[Type, str]] = None
+
+    def __eq__(self, other):
+        # Equality based on ID should be safe because uniqueness is enforced through the registry.
+        return type(other) == Datasource and other.id == self.id
+
+    def __hash__(self):
+        return hash((type(self), self.id))
 
 
 class _Registry:
@@ -42,6 +49,7 @@ DS = _Registry()
 
 class DbXref:
     """A reference to an entry in an external database."""
+
     def __init__(self, db: Optional[Union[str, Datasource]], id: str, clazz: Optional[Type] = None):
         if type(db) == Datasource:
             self.db = db
@@ -116,9 +124,9 @@ class KbEntry:
     def same_as(self, other) -> bool:
         """Reusable by subclasses to simplify implementation of __eq__."""
         return (
-            type(self) == type(other) and
-            self.id == other.id and
-            (self.db is None and other.db is None or self.db == other.db)
+                type(self) == type(other) and
+                self.id == other.id and
+                (self.db is None and other.db is None or self.db == other.db)
         )
 
     def __eq__(self, other):
