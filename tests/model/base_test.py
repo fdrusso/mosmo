@@ -1,5 +1,23 @@
 """Tests for mosmo.model.base."""
-from mosmo.model.base import KbEntry, DbXref
+from mosmo.model.base import Datasource, DS, KbEntry, DbXref
+
+
+class TestDatasource:
+    def test_Get(self):
+        """An existing instance can be retrieved by id."""
+        stuff = DS.define(Datasource(id="STUFF", name="Just some stuff"))
+        assert DS.get(stuff.id) is stuff
+
+    def test_CreateOnDemand(self):
+        """A new instance is created on demand, and remains retrievable."""
+        things = DS.get("THINGS")
+        assert things is not None
+        assert DS.get(things.id) is things
+
+    def test_MemberAccess(self):
+        """Datasource instances become part of the class definition itself."""
+        junk = DS.define(Datasource(id="JUNK", name="Nothing useful"))
+        assert DS.JUNK is junk
 
 
 class TestKbEntry:

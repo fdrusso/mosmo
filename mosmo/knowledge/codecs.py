@@ -8,7 +8,7 @@ the system to infer them. This seems a manageable constraint.
 import abc
 from typing import Callable, Iterable, Mapping
 
-from mosmo.model.base import DbXref, KbEntry
+from mosmo.model.base import DS, DbXref, KbEntry
 from mosmo.model.core import Molecule, Reaction, Pathway, Specialization, Variation
 
 
@@ -93,9 +93,10 @@ class ObjectCodec(Codec):
     def encode(self, obj):
         doc = {}
         for k, v in obj.__dict__.items():
-            if v is not None:
+            codec = self.codec_map.get(k, AS_IS)
+            if codec is not None and v is not None:
                 k = self.encoded_name.get(k, k)
-                doc[k] = self.codec_map.get(k, AS_IS).encode(v)
+                doc[k] = codec.encode(v)
         return doc
 
     def decode(self, doc):
@@ -127,7 +128,7 @@ MOL_ID = ObjectIdCodec(Molecule)
 RXN_ID = ObjectIdCodec(Reaction)
 
 CODECS = {
-    DbXref: ObjectCodec(DbXref),
+    DbXref: ObjectCodec(DbXref, {'db': ObjectIdCodec(lambda db: DS.get(db)), '_clazz': None}),
     Variation: ObjectCodec(Variation, {'form_names': ListCodec()}),
     Specialization: ObjectCodec(Specialization, {'form': ListCodec(list_type=tuple)}),
 }

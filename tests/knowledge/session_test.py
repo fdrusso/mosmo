@@ -6,10 +6,10 @@ from pymongo import MongoClient, timeout
 from pymongo.errors import ConnectionFailure
 
 from mosmo.knowledge.kb import Session, Dataset
-from mosmo.model import KbEntry, DbXref
+from mosmo.model import KbEntry, DbXref, DS
 
-TEST = Dataset("TEST", "test", "test", KbEntry)
-TEST_CANON = Dataset("CANON", "test", "canon", KbEntry)
+TEST = Dataset(DS.get("TEST"), "test", "test", KbEntry)
+TEST_CANON = Dataset(DS.get("CANON"), "test", "canon", KbEntry)
 
 
 class TestSession:
@@ -17,7 +17,7 @@ class TestSession:
 
     def mem_session(self) -> Session:
         """Sets up an in-memory Session without an underlying mongo DB."""
-        return Session(client=None, schema={TEST.id: TEST})
+        return Session(client=None, schema={TEST.datasource.id: TEST})
 
     def db_session(self) -> Optional[Session]:
         """Sets up a Session with an underlying mongo DB and a fresh /test space."""
@@ -25,7 +25,7 @@ class TestSession:
         try:
             with timeout(2):
                 client.drop_database("test")
-            return Session(client=client, schema={TEST.id: TEST})
+            return Session(client=client, schema={TEST.datasource.id: TEST})
         except ConnectionFailure:
             return None
 
@@ -74,7 +74,7 @@ class TestSession:
     def test_PutGetDeref_Canonical(self):
         """The KB retrieves preferentially from a canonical dataset."""
         session = self.mem_session()
-        session.define_dataset(TEST_CANON.id, TEST_CANON, canonical=True)
+        session.define_dataset(TEST_CANON.datasource.id, TEST_CANON, canonical=True)
 
         # Two objects with the same id, but in different datasets
         x1 = KbEntry("x", name="Test object x")
@@ -135,12 +135,12 @@ class TestSession:
         obj = KbEntry("obj", name="The object.")
         assert obj.db is None
         session.put(TEST, obj)
-        assert obj.db == TEST.id
+        assert obj.db == TEST.datasource.id
 
     def test_PutCopy(self):
         """Persisting an entry to a new dataset makes a copy."""
         session = self.mem_session()
-        session.define_dataset("METOO", Dataset("METOO", "test", "metoo", KbEntry))
+        session.define_dataset("METOO", Dataset(DS.get("METOO"), "test", "metoo", KbEntry))
         obj = KbEntry("obj", name="The object.")
         session.put(TEST, obj)
         assert session("TEST:obj") is obj
@@ -148,5 +148,5 @@ class TestSession:
         session.put(session.METOO, obj)
         clone = session("METOO:obj")
         assert clone is not None
-        assert clone.db == session.METOO.id
+        assert clone.db == session.METOO.datasource.id
         assert clone != obj

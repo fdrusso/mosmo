@@ -6,20 +6,20 @@ from typing import Any, Dict, List, Mapping, Optional, Type
 from pymongo import MongoClient
 
 from mosmo.knowledge import codecs
-from mosmo.model.base import DbXref, KbEntry
+from mosmo.model.base import Datasource, DS, DbXref, KbEntry
 from mosmo.model.core import Molecule, Reaction, Pathway
 
 
 @dataclass(eq=True, order=True, frozen=True)
 class Dataset:
-    id: str
+    datasource: Datasource
     client_db: str
     collection: str
     content_type: Type[KbEntry]
     codec: codecs.Codec = None
 
     def __repr__(self):
-        return f'{self.client_db}.{self.collection} [{self.content_type.__name__}]'
+        return f'[{self.datasource.id}] {self.client_db}.{self.collection} ({self.content_type.__name__})'
 
 
 class Session:
@@ -63,7 +63,7 @@ class Session:
             codec = dataset.codec or codecs.CODECS[dataset.content_type]
             entry = codec.decode(doc)
             if entry.db is None:
-                entry.db = dataset.id
+                entry.db = dataset.datasource.id
             self._cache[dataset][doc['_id']] = entry
         return self._cache[dataset][doc['_id']]
 
@@ -92,10 +92,10 @@ class Session:
                 cache. May save session memory if a large number of entries are persisted.
         """
         if entry.db is None:
-            entry.db = dataset.id
-        elif entry.db != dataset.id:
+            entry.db = dataset.datasource.id
+        elif entry.db != dataset.datasource.id:
             entry = copy.deepcopy(entry)
-            entry.db = dataset.id
+            entry.db = dataset.datasource.id
 
         if not bypass_cache:
             self._cache[dataset][entry.id] = entry
@@ -130,7 +130,7 @@ class Session:
         xref = self.as_xref(q)
         query = {'xrefs.id': xref.id}
         if xref.db:
-            query['xrefs.db'] = xref.db
+            query['xrefs.db'] = xref.db.id
 
         results = []
         for doc in self.client[dataset.client_db][dataset.collection].find(query).collation(
@@ -157,8 +157,8 @@ class Session:
     def deref(self, q) -> Optional[KbEntry]:
         """Retrieves the entry referred to by a DbXref or its string representation."""
         xref = self.as_xref(q)
-        if xref.db in self.schema:
-            return self.get(self.schema[xref.db], xref.id)
+        if xref.db and xref.db.id in self.schema:
+            return self.get(self.schema[xref.db.id], xref.id)
         else:
             return None
 
@@ -253,10 +253,10 @@ def configure_kb(uri: str = 'mongodb://127.0.0.1:27017'):
     session = Session(MongoClient(uri))
 
     # Reference datasets (local copies of external sources)
-    session.define_dataset('EC', Dataset('EC', 'ref', 'EC', KbEntry))
-    session.define_dataset('GO', Dataset('GO', 'ref', 'GO', KbEntry))
-    session.define_dataset('CHEBI', Dataset('CHEBI', 'ref', 'CHEBI', Molecule))
-    session.define_dataset('RHEA', Dataset('RHEA', 'ref', 'RHEA', Reaction, codecs.ObjectCodec(
+    session.define_dataset('EC', Dataset(DS.EC, 'ref', 'EC', KbEntry))
+    session.define_dataset('GO', Dataset(DS.GO, 'ref', 'GO', KbEntry))
+    session.define_dataset('CHEBI', Dataset(DS.CHEBI, 'ref', 'CHEBI', Molecule))
+    session.define_dataset('RHEA', Dataset(DS.RHEA, 'ref', 'RHEA', Reaction, codecs.ObjectCodec(
         Reaction,
         codec_map={
             'xrefs': codecs.ListCodec(item_codec=codecs.CODECS[DbXref], list_type=set),
@@ -267,8 +267,8 @@ def configure_kb(uri: str = 'mongodb://127.0.0.1:27017'):
     )))
 
     # The KB proper - compiled, reconciled, integrated
-    session.define_dataset('compounds', Dataset('compounds', 'kb', 'compounds', Molecule), canonical=True)
-    session.define_dataset('reactions', Dataset('reactions', 'kb', 'reactions', Reaction, codecs.ObjectCodec(
+    session.define_dataset('compounds', Dataset(DS.get('compounds'), 'kb', 'compounds', Molecule), canonical=True)
+    session.define_dataset('reactions', Dataset(DS.get('reactions'), 'kb', 'reactions', Reaction, codecs.ObjectCodec(
         Reaction,
         codec_map={
             'xrefs': codecs.ListCodec(item_codec=codecs.CODECS[DbXref], list_type=set),
@@ -277,7 +277,7 @@ def configure_kb(uri: str = 'mongodb://127.0.0.1:27017'):
         },
         rename={"id": "_id"}
     )), canonical=True)
-    session.define_dataset('pathways', Dataset('pathways', 'kb', 'pathways', Pathway, codecs.ObjectCodec(
+    session.define_dataset('pathways', Dataset(DS.get('pathways'), 'kb', 'pathways', Pathway, codecs.ObjectCodec(
         Pathway,
         codec_map={
             'xrefs': codecs.ListCodec(item_codec=codecs.CODECS[DbXref], list_type=set),
