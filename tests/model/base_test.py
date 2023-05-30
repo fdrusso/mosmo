@@ -39,7 +39,7 @@ class TestKbEntry:
 
 class TestDbXref:
     def test_FromStr(self):
-        assert DbXref("FOO", "bar") == DbXref.from_str("FOO:bar")
+        assert DbXref(id="bar", db=DS.get("FOO")) == DbXref.from_str("FOO:bar")
 
     def test_FromStr_RoundTrip(self):
         xref_str = "FOO:bar"

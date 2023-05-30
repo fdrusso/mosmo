@@ -1,74 +1,104 @@
 """Knowledge Base for Molecular Systems Modeling."""
+import collections
 import copy
 from dataclasses import dataclass
-from typing import Any, Dict, List, Mapping, Optional, Type
+from typing import Any, Dict, Iterable, List, Optional, Type
 
 from pymongo import MongoClient
 
 from mosmo.knowledge import codecs
-from mosmo.model.base import Datasource, DS, DbXref, KbEntry
-from mosmo.model.core import Molecule, Reaction, Pathway
+from mosmo.model import Datasource, DS, DbXref, KbEntry, Molecule, Reaction, Pathway
 
 
 @dataclass(eq=True, order=True, frozen=True)
 class Dataset:
-    datasource: Datasource
+    """A defined collection of entries in the Knowledge Base.
+
+    Entries in a dataset are all of the same type, and associated with a single Datasource. This corresponds to a
+    single Collection in the underlying mongo db used for persistence.
+    """
+    name: str
     client_db: str
     collection: str
+    datasource: Datasource
     content_type: Type[KbEntry]
+    canonical: bool = False
     codec: codecs.Codec = None
 
     def __repr__(self):
-        return f'[{self.datasource.id}] {self.client_db}.{self.collection} ({self.content_type.__name__})'
+        return f'{self.name}: [{self.client_db}.{self.collection}] ({self.datasource.id}/{self.content_type.__name__})'
+
+
+def as_xref(q) -> DbXref:
+    """Attempts to coerce the query to a DbXref."""
+    if isinstance(q, DbXref):
+        return q
+    elif isinstance(q, str):
+        return DbXref.from_str(q)
+    else:
+        raise TypeError(f"{q} cannot be converted to DbXref.")
 
 
 class Session:
-    def __init__(self, client: Optional[MongoClient] = None, schema: Mapping[str, Dataset] = None):
+    def __init__(self, client: Optional[MongoClient] = None, schema: Iterable[Dataset] = None):
         """Initializes a KB session.
 
         Args:
-            client: connection to a local or remote MongoDB server. If None,the session performs as an in-memory cache
+            client: connection to a local or remote MongoDB server. If None, the session performs as an in-memory cache
                 and no data is persisted.
             schema: Dataset definitions for the contents of the KB.
         """
         self.client = client
         self.schema: Dict[str, Dataset] = {}
-        self.canon: Dict[Type[KbEntry], Dataset] = {}
+        self.by_source: Dict[Datasource, Dict[Type, Dataset]] = collections.defaultdict(dict)
+        self.canon: Dict[Type, Dataset] = {}
         self._cache: Dict[Dataset, Dict[Any, KbEntry]] = {}
 
         if schema:
-            for name, dataset in schema.items():
-                self.define_dataset(name, dataset)
+            for dataset in schema:
+                self.define_dataset(dataset)
 
-    def define_dataset(self, name: str, dataset: Dataset, canonical=False):
+    def define_dataset(self, dataset: Dataset):
         """Adds a dataset to the schema of this session."""
-        if name not in self.schema and name not in self.__dict__:
-            self.schema[name] = dataset
-            if canonical:
-                if dataset.content_type in self.canon:
-                    raise ValueError(f"Attempt to redefine canonical dataset for {dataset.content_type}.")
-                self.canon[dataset.content_type] = dataset
+        if dataset.name in self.schema or dataset.name in self.__dict__:
+            raise ValueError(f'Name collision: {dataset.name} is an existing attribute of Session')
 
-            # The cache is not just to save round-trips to the datastore, but to maximize reuse of decoded instances.
-            self._cache[dataset] = {}
+        self.schema[dataset.name] = dataset
+        self.by_source[dataset.datasource][dataset.content_type] = dataset
 
-            # Make the dataset definitions easily accessible as attributes.
-            self.__dict__[name] = dataset
-        else:
-            raise ValueError(f'Name collision: {name} is an existing attribute of Session')
+        if dataset.canonical:
+            if dataset.content_type in self.canon:
+                raise ValueError(f"Attempt to redefine canonical dataset for {dataset.content_type}.")
+            self.canon[dataset.content_type] = dataset
+
+        # Make dataset definitions easily accessible as attributes of the Session.
+        self.__dict__[dataset.name] = dataset
+
+        # The cache is not just to save round-trips to the datastore, but to maximize reuse of decoded instances.
+        self._cache[dataset] = {}
+
+    def clear_cache(self, *datasets):
+        """Clears cached entries for select datasets, or all datasets."""
+        if not datasets:
+            datasets = self.schema.values()
+        for dataset in datasets:
+            self._cache[dataset].clear()
 
     def _cache_value(self, dataset: Dataset, doc) -> KbEntry:
-        """Decodes a document from storage, into the in-memory cache for the specified dataset."""
+        """Decodes a document from storage into the in-memory cache for the specified dataset."""
         if doc['_id'] not in self._cache[dataset]:
             codec = dataset.codec or codecs.CODECS[dataset.content_type]
             entry = codec.decode(doc)
             if entry.db is None:
-                entry.db = dataset.datasource.id
+                entry.db = dataset.datasource
             self._cache[dataset][doc['_id']] = entry
         return self._cache[dataset][doc['_id']]
 
     def get(self, dataset: Dataset, id: str) -> Optional[KbEntry]:
         """Retrieves the specified entry from the KB by ID, if it exists."""
+        if dataset is None:
+            return None
+
         if id not in self._cache[dataset] and self.client is not None:
             doc = self.client[dataset.client_db][dataset.collection].find_one(id)
             if doc:
@@ -92,10 +122,10 @@ class Session:
                 cache. May save session memory if a large number of entries are persisted.
         """
         if entry.db is None:
-            entry.db = dataset.datasource.id
-        elif entry.db != dataset.datasource.id:
+            entry.db = dataset.datasource
+        elif entry.db != dataset.datasource:
             entry = copy.deepcopy(entry)
-            entry.db = dataset.datasource.id
+            entry.db = dataset.datasource
 
         if not bypass_cache:
             self._cache[dataset][entry.id] = entry
@@ -127,7 +157,7 @@ class Session:
 
     def xref(self, dataset: Dataset, q) -> List[KbEntry]:
         """Finds any number of entries in the dataset cross-referenced to the given query (DbXref or string)."""
-        xref = self.as_xref(q)
+        xref = as_xref(q)
         query = {'xrefs.id': xref.id}
         if xref.db:
             query['xrefs.db'] = xref.db.id
@@ -138,56 +168,20 @@ class Session:
             results.append(self._cache_value(dataset, doc))
         return results
 
-    def clear_cache(self, *datasets):
-        """Clears cached entries for select datasets, or all datasets."""
-        if not datasets:
-            datasets = self.schema.values()
-        for dataset in datasets:
-            self._cache[dataset].clear()
-
-    def as_xref(self, q) -> DbXref:
-        """Attempts to coerce the query to a DbXref."""
-        if isinstance(q, DbXref):
-            return q
-        elif isinstance(q, str):
-            return DbXref.from_str(q)
-        else:
-            raise TypeError(f"{q} cannot be converted to DbXref.")
-
-    def deref(self, q) -> Optional[KbEntry]:
+    def deref(self, q, clazz: Optional[Type] = None) -> Optional[KbEntry]:
         """Retrieves the entry referred to by a DbXref or its string representation."""
-        xref = self.as_xref(q)
-        if xref.db and xref.db.id in self.schema:
-            return self.get(self.schema[xref.db.id], xref.id)
-        else:
+        xref = as_xref(q)
+        if xref.db not in self.by_source:
             return None
 
-    def as_molecule(self, q) -> Optional[Molecule]:
-        """Attempts to coerce the query to a Molecule."""
-        if isinstance(q, Molecule):
-            return q
-        mol = self.deref(q)
-        if not mol and Molecule in self.canon and isinstance(q, str):
-            mol = self.get(self.canon[Molecule], q)
-        return mol
+        if clazz is None and len(self.by_source[xref.db]) == 1:
+            dataset = next(iter(self.by_source[xref.db].values()))
+        elif clazz in self.by_source[xref.db]:
+            dataset = self.by_source[xref.db].get(clazz)
+        else:
+            dataset = None
 
-    def as_reaction(self, q) -> Optional[Reaction]:
-        """Attempts to coerce the query to a Reaction."""
-        if isinstance(q, Reaction):
-            return q
-        rxn = self.deref(q)
-        if not rxn and Reaction in self.canon and isinstance(q, str):
-            rxn = self.get(self.canon[Reaction], q)
-        return rxn
-
-    def as_pathway(self, q) -> Optional[Pathway]:
-        """Attempts to coerce the query to a Pathway."""
-        if isinstance(q, Pathway):
-            return q
-        pw = self.deref(q)
-        if not pw and Pathway in self.canon and isinstance(q, str):
-            pw = self.get(self.canon[Pathway], q)
-        return pw
+        return self.get(dataset, xref.id)
 
     def __call__(self, q) -> Optional[KbEntry]:
         """Convenience interface to the KB.
@@ -253,12 +247,13 @@ def configure_kb(uri: str = 'mongodb://127.0.0.1:27017'):
     session = Session(MongoClient(uri))
 
     # Reference datasets (local copies of external sources)
-    session.define_dataset('EC', Dataset(DS.EC, 'ref', 'EC', KbEntry))
-    session.define_dataset('GO', Dataset(DS.GO, 'ref', 'GO', KbEntry))
-    session.define_dataset('CHEBI', Dataset(DS.CHEBI, 'ref', 'CHEBI', Molecule))
-    session.define_dataset('RHEA', Dataset(DS.RHEA, 'ref', 'RHEA', Reaction, codecs.ObjectCodec(
+    session.define_dataset(Dataset('EC', 'ref', 'EC', DS.EC, KbEntry))
+    session.define_dataset(Dataset('GO', 'ref', 'GO', DS.GO, KbEntry))
+    session.define_dataset(Dataset('CHEBI', 'ref', 'CHEBI', DS.CHEBI, Molecule))
+    session.define_dataset(Dataset('RHEA', 'ref', 'RHEA', DS.RHEA, Reaction, codec=codecs.ObjectCodec(
         Reaction,
         codec_map={
+            'db': codecs.DB_ID,
             'xrefs': codecs.ListCodec(item_codec=codecs.CODECS[DbXref], list_type=set),
             'stoichiometry': codecs.MappingCodec(key_codec=LookupCodec(session, session.CHEBI)),
             'catalyst': codecs.MOL_ID,
@@ -267,24 +262,26 @@ def configure_kb(uri: str = 'mongodb://127.0.0.1:27017'):
     )))
 
     # The KB proper - compiled, reconciled, integrated
-    session.define_dataset('compounds', Dataset(DS.get('compounds'), 'kb', 'compounds', Molecule), canonical=True)
-    session.define_dataset('reactions', Dataset(DS.get('reactions'), 'kb', 'reactions', Reaction, codecs.ObjectCodec(
+    session.define_dataset(Dataset('compounds', 'kb', 'compounds', DS.get('CANON'), Molecule, canonical=True))
+    session.define_dataset(Dataset('reactions', 'kb', 'reactions', DS.get('CANON'), Reaction, canonical=True, codec=codecs.ObjectCodec(
         Reaction,
         codec_map={
+            'db': codecs.DB_ID,
             'xrefs': codecs.ListCodec(item_codec=codecs.CODECS[DbXref], list_type=set),
             'stoichiometry': codecs.MappingCodec(key_codec=LookupCodec(session, session.compounds)),
             'catalyst': codecs.MOL_ID,
         },
         rename={"id": "_id"}
-    )), canonical=True)
-    session.define_dataset('pathways', Dataset(DS.get('pathways'), 'kb', 'pathways', Pathway, codecs.ObjectCodec(
+    )))
+    session.define_dataset(Dataset('pathways', 'kb', 'pathways', DS.get('CANON'), Pathway, canonical=True, codec=codecs.ObjectCodec(
         Pathway,
         codec_map={
+            'db': codecs.DB_ID,
             'xrefs': codecs.ListCodec(item_codec=codecs.CODECS[DbXref], list_type=set),
             'metabolites': codecs.ListCodec(item_codec=LookupCodec(session, session.compounds)),
             'steps': codecs.ListCodec(item_codec=LookupCodec(session, session.reactions)),
             'enzymes': codecs.ListCodec(item_codec=codecs.MOL_ID),
         },
         rename={"id": "_id"}
-    )), canonical=True)
+    )))
     return session

@@ -1,22 +1,15 @@
 """Base classes with universal attributes for Knowledge Base entries."""
 from dataclasses import dataclass
-from typing import List, Mapping, Optional, Set, Type, Union
+from typing import List, Mapping, Optional, Set, Type
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=True)
 class Datasource:
     """Part of the ecosystem hosting biological data."""
     id: str
     name: Optional[str] = None
     home: Optional[str] = None
     urlpat: Optional[Mapping[Type, str]] = None
-
-    def __eq__(self, other):
-        # Equality based on ID should be safe because uniqueness is enforced through the registry.
-        return type(other) == Datasource and other.id == self.id
-
-    def __hash__(self):
-        return hash((type(self), self.id))
 
 
 class _Registry:
@@ -47,18 +40,11 @@ class _Registry:
 DS = _Registry()
 
 
+@dataclass(frozen=True, eq=True, repr=False)
 class DbXref:
-    """A reference to an entry in an external database."""
-
-    def __init__(self, db: Optional[Union[str, Datasource]], id: str, clazz: Optional[Type] = None):
-        if type(db) == Datasource:
-            self.db = db
-        elif type(db) == str:
-            self.db = DS.get(db)
-        else:
-            self.db = None
-        self.id = id
-        self._clazz = clazz
+    """A reference to an entry in a datasource."""
+    id: str
+    db: Optional[Datasource] = None
 
     def __repr__(self):
         if self.db:
@@ -66,21 +52,19 @@ class DbXref:
         else:
             return self.id
 
-    def __eq__(self, other):
-        return (type(self) == type(other)
-                and (self.db is None and other.db is None or self.db == other.db)
-                and self.id == other.id)
+    def url(self, clazz: Optional[Type] = None) -> Optional[str]:
+        """Constructs a URL linking to the datasource's record of this entry.
 
-    def __hash__(self):
-        return hash((self.db, self.id))
-
-    def url(self) -> Optional[str]:
+        Some but not all datasources contain entries of multiple types, with corresponding differences in URL pattern.
+        In this case the type of object must be provided to construct an unambiguous URL.
+        """
         if self.db is not None and self.db.urlpat:
-            if self._clazz and self._clazz in self.db.urlpat:
-                return self.db.urlpat[self._clazz].format(id=self.id)
-            elif len(self.db.urlpat) == 1:
-                # Just assume the lookup by id will work
-                return next(iter(self.db.urlpat.values())).format(id=self.id)
+            if clazz is None and len(self.db.urlpat) == 1:
+                urlpat = next(iter(self.db.urlpat.values()))
+                return urlpat.format(id=self.id)
+            elif clazz in self.db.urlpat:
+                urlpat = self.db.urlpat[clazz]
+                return urlpat.format(id=self.id)
         return None
 
     @staticmethod
@@ -88,38 +72,35 @@ class DbXref:
         """Parses a typically formatted DB:ID string into a DbXref."""
         parts = xref.split(":", 2)
         if len(parts) == 2:
-            return DbXref(*parts)
+            return DbXref(parts[1], DS.get(parts[0]))
         else:
-            return DbXref(None, xref)
+            return DbXref(xref)
 
 
 @dataclass
 class KbEntry:
-    """Attributes common to first-class entities, items, or concepts in the knowledge base."""
+    """Attributes common to first-class entities, items, or concepts in the knowledge base.
+
+    Attributes:
+        id: Persistent unique identifier.
+        db: The database/datasource in which this is an entry.
+        name: Preferred name of the entry. Brief but descriptive, suitable for lists.
+        shorthand: Acronym, abbreviation, or other terse label, suitable for graphs or diagrams.
+        description: Full description, suitable for a view focused on one entry at a time.
+        aka: Alternative names of the entry.
+        xrefs: Cross-references to (essentially) the same entry in other databases.
+    """
     id: str
-    """Persistent unique identifier."""
-
-    db: Optional[str] = None
-    """The database/dataset in which this is an entry."""
-
+    db: Optional[Datasource] = None
     name: str = ''
-    """Preferred name of the entry. Brief but descriptive, suitable for lists."""
-
     shorthand: Optional[str] = None
-    """Acronym, abbreviation, or other terse label, suitable for diagrams."""
-
     description: Optional[str] = None
-    """Full description, suitable for a view focused on one entry at a time."""
-
     aka: Optional[List[str]] = None
-    """Alternative names of the entry."""
-
     xrefs: Optional[Set[DbXref]] = None
-    """Cross-references to (essentially) the same entry in other databases."""
 
     def ref(self) -> DbXref:
         """A DbXref that refers to this KbEntry."""
-        return DbXref(db=self.db, id=self.id, clazz=type(self))
+        return DbXref(id=self.id, db=self.db)
 
     def same_as(self, other) -> bool:
         """Reusable by subclasses to simplify implementation of __eq__."""

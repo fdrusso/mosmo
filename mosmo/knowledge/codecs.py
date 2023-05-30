@@ -8,8 +8,7 @@ the system to infer them. This seems a manageable constraint.
 import abc
 from typing import Callable, Iterable, Mapping
 
-from mosmo.model.base import DS, DbXref, KbEntry
-from mosmo.model.core import Molecule, Reaction, Pathway, Specialization, Variation
+from mosmo.model import DS, DbXref, KbEntry, Molecule, Reaction, Pathway, Specialization, Variation
 
 
 class Codec(abc.ABC):
@@ -71,7 +70,7 @@ class MappingCodec(Codec):
         self.value_codec = value_codec or AS_IS
 
     def encode(self, mapping):
-        return [[self.key_codec.encode(k), self.value_codec.encode(v)] for k, v in mapping.items()]
+        return [(self.key_codec.encode(k), self.value_codec.encode(v)) for k, v in mapping.items()]
 
     def decode(self, doc):
         return self.mapping_type({self.key_codec.decode(k): self.value_codec.decode(v) for k, v in doc})
@@ -102,8 +101,9 @@ class ObjectCodec(Codec):
     def decode(self, doc):
         args = {}
         for k, v in doc.items():
+            codec = self.codec_map.get(k, AS_IS)
             k = self.decoded_name.get(k, k)
-            args[k] = self.codec_map.get(k, AS_IS).decode(v)
+            args[k] = codec.decode(v)
         return self.clazz(**args)
 
 
@@ -124,24 +124,29 @@ class ObjectIdCodec(Codec):
         return self.clazz(id)
 
 
+DB_ID = ObjectIdCodec(lambda id: DS.get(id))
 MOL_ID = ObjectIdCodec(Molecule)
 RXN_ID = ObjectIdCodec(Reaction)
 
 CODECS = {
-    DbXref: ObjectCodec(DbXref, {'db': ObjectIdCodec(lambda db: DS.get(db)), '_clazz': None}),
+    DbXref: ObjectCodec(DbXref, {'db': DB_ID}),
     Variation: ObjectCodec(Variation, {'form_names': ListCodec()}),
     Specialization: ObjectCodec(Specialization, {'form': ListCodec(list_type=tuple)}),
 }
 
 CODECS[KbEntry] = ObjectCodec(
     KbEntry,
-    codec_map={'xrefs': ListCodec(item_codec=CODECS[DbXref], list_type=set)},
+    codec_map={
+        'db': DB_ID,
+        'xrefs': ListCodec(item_codec=CODECS[DbXref], list_type=set)
+    },
     rename={"id": "_id"}
 )
 
 CODECS[Molecule] = ObjectCodec(
     Molecule,
     codec_map={
+        'db': DB_ID,
         'xrefs': ListCodec(item_codec=CODECS[DbXref], list_type=set),
         'variations': ListCodec(item_codec=CODECS[Variation]),
         'canonical_form': CODECS[Specialization],
@@ -153,6 +158,7 @@ CODECS[Molecule] = ObjectCodec(
 CODECS[Reaction] = ObjectCodec(
     Reaction,
     codec_map={
+        'db': DB_ID,
         'xrefs': ListCodec(item_codec=CODECS[DbXref], list_type=set),
         'stoichiometry': MappingCodec(key_codec=MOL_ID),
         'catalyst': MOL_ID,
@@ -163,6 +169,7 @@ CODECS[Reaction] = ObjectCodec(
 CODECS[Pathway] = ObjectCodec(
     Pathway,
     codec_map={
+        'db': DB_ID,
         'xrefs': ListCodec(item_codec=CODECS[DbXref], list_type=set),
         'metabolites': ListCodec(item_codec=MOL_ID),
         'steps': ListCodec(item_codec=RXN_ID),
