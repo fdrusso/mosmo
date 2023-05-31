@@ -4,6 +4,16 @@ from .core import Molecule, Reaction, Pathway
 
 
 DS.define(Datasource(
+    id="BIGG",
+    name="BiGG Models",
+    home="http://bigg.ucsd.edu/",
+    urlpat={
+        Molecule: "http://bigg.ucsd.edu/search?query={id}",
+        Reaction: "http://bigg.ucsd.edu/search?query={id}",
+    }
+))
+
+DS.define(Datasource(
     id="CAS",
     name="Chemical Abstracts Service",
     home="https://www.cas.org/cas-data/cas-registry"
@@ -59,6 +69,15 @@ DS.define(Datasource(
 ))
 
 DS.define(Datasource(
+    id="LINCS",
+    name="The Library of Integrated Network-Based Cellular Signatures (LINCS)",
+    home="https://lincsportal.ccs.miami.edu/SmallMolecules/",
+    urlpat={
+        Molecule: "https://lincsportal.ccs.miami.edu/SmallMolecules/view/{id}"
+    }
+))
+
+DS.define(Datasource(
     id="MACIE",
     name="Mechanism Annotation and Classification in Enzymes",
     home="https://www.ebi.ac.uk/thornton-srv/m-csa/",
@@ -79,6 +98,16 @@ DS.define(Datasource(
 ))
 
 DS.define(Datasource(
+    id="METANETX",
+    name="MetaNetX",
+    home="https://www.metanetx.org/",
+    urlpat={
+        Molecule: "https://www.metanetx.org/chem_info/{id}",
+        Reaction: "https://www.metanetx.org/equa_info/{id}"
+    }
+))
+
+DS.define(Datasource(
     id="REACT",
     name="Reactome",
     home="https://reactome.org/",
@@ -93,5 +122,14 @@ DS.define(Datasource(
     home="https://www.rhea-db.org/",
     urlpat={
         Reaction: "https://www.rhea-db.org/rhea/{id}"
+    }
+))
+
+DS.define(Datasource(
+    id="WIKI",
+    name="Wikipedia",
+    home="https://en.wikipedia.org/",
+    urlpat={
+        KbEntry: "https://en.wikipedia.org/wiki/{id}"
     }
 ))

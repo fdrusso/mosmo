@@ -4,7 +4,7 @@ from typing import List, Mapping, Optional
 import equilibrator_api
 import numpy as np
 
-from mosmo.model import Molecule, Reaction
+from mosmo.model import DS, Molecule, Reaction
 
 
 class Thermodynamics:
@@ -25,14 +25,14 @@ class Thermodynamics:
             # Priority order as supported by eQuilibrator, as documented at
             # https://equilibrator.readthedocs.io/en/latest/tutorial.html#creating-a-compound-object
             xrefs = {xref.db: xref.id for xref in molecule.xrefs or []}
-            if "METANETX" in xrefs:
-                self._cc_compounds[molecule] = self.cc.get_compound(f"metanetx.chemical:" + xrefs["METANETX"])
-            elif "BIGG" in xrefs:
-                self._cc_compounds[molecule] = self.cc.get_compound(f"bigg.metabolite:" + xrefs["BIGG"])
-            elif "KEGG" in xrefs:
-                self._cc_compounds[molecule] = self.cc.get_compound(f"kegg:" + xrefs["KEGG"])
-            elif "CHEBI" in xrefs:
-                self._cc_compounds[molecule] = self.cc.get_compound(f"chebi:CHEBI:" + xrefs["CHEBI"])
+            if DS.METANETX in xrefs:
+                self._cc_compounds[molecule] = self.cc.get_compound(f"metanetx.chemical:" + xrefs[DS.METANETX])
+            elif DS.BIGG in xrefs:
+                self._cc_compounds[molecule] = self.cc.get_compound(f"bigg.metabolite:" + xrefs[DS.BIGG])
+            elif DS.KEGG in xrefs:
+                self._cc_compounds[molecule] = self.cc.get_compound(f"kegg:" + xrefs[DS.KEGG])
+            elif DS.CHEBI in xrefs:
+                self._cc_compounds[molecule] = self.cc.get_compound(f"chebi:CHEBI:" + xrefs[DS.CHEBI])
             else:
                 # Prevent retrying unmatched compounds
                 self._cc_compounds[molecule] = None

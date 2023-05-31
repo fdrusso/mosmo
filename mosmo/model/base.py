@@ -1,15 +1,15 @@
 """Base classes with universal attributes for Knowledge Base entries."""
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Mapping, Optional, Set, Type
 
 
-@dataclass(frozen=True, eq=True)
+@dataclass(frozen=True, eq=True, order=True)
 class Datasource:
     """Part of the ecosystem hosting biological data."""
     id: str
-    name: Optional[str] = None
-    home: Optional[str] = None
-    urlpat: Optional[Mapping[Type, str]] = None
+    name: Optional[str] = field(default=None, compare=False)
+    home: Optional[str] = field(default=None, compare=False)
+    urlpat: Optional[Mapping[Type, str]] = field(default=None, compare=False)
 
 
 class _Registry:
@@ -59,7 +59,7 @@ class DbXref:
         In this case the type of object must be provided to construct an unambiguous URL.
         """
         if self.db is not None and self.db.urlpat:
-            if clazz is None and len(self.db.urlpat) == 1:
+            if len(self.db.urlpat) == 1:
                 urlpat = next(iter(self.db.urlpat.values()))
                 return urlpat.format(id=self.id)
             elif clazz in self.db.urlpat:
@@ -115,6 +115,9 @@ class KbEntry:
 
     def __hash__(self):
         return hash((type(self), self.id, self.db))
+
+    def __repr__(self):
+        return f"[{self.id}]{' (' + self.shorthand + ')' if self.shorthand else ''} {self.name}"
 
     @property
     def label(self):

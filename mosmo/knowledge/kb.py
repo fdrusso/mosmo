@@ -174,7 +174,7 @@ class Session:
         if xref.db not in self.by_source:
             return None
 
-        if clazz is None and len(self.by_source[xref.db]) == 1:
+        if len(self.by_source[xref.db]) == 1:
             dataset = next(iter(self.by_source[xref.db].values()))
         elif clazz in self.by_source[xref.db]:
             dataset = self.by_source[xref.db].get(clazz)
