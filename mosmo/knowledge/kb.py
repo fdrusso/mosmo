@@ -18,15 +18,15 @@ class Dataset:
     single Collection in the underlying mongo db used for persistence.
     """
     name: str
-    client_db: str
-    collection: str
     datasource: Datasource
     content_type: Type[KbEntry]
+    client_db: str
+    collection: str
     codec: codecs.Codec
     canonical: bool = False
 
     def __repr__(self):
-        return f'{self.name}: [{self.client_db}.{self.collection}] ({self.datasource.id}/{self.content_type.__name__})'
+        return f'{self.name}: ({self.datasource.id}/{self.content_type.__name__}) [{self.client_db}.{self.collection}]'
 
 
 def as_xref(q) -> DbXref:
@@ -281,18 +281,18 @@ def configure_kb(uri: str = 'mongodb://127.0.0.1:27017'):
     )
 
     # Reference datasets (local copies of external sources)
-    session.define_dataset(Dataset('EC', 'test', 'EC', DS.EC, KbEntry, codecs.CODECS[KbEntry]))
-    session.define_dataset(Dataset('GO', 'test', 'GO', DS.GO, KbEntry, codecs.CODECS[KbEntry]))
-    session.define_dataset(Dataset('CHEBI', 'test', 'CHEBI', DS.CHEBI, Molecule, mol_codec))
-    session.define_dataset(Dataset('RHEA', 'test', 'RHEA', DS.RHEA, Reaction, rxn_codec))
+    session.define_dataset(Dataset('EC', DS.EC, KbEntry, 'test', 'EC', codecs.CODECS[KbEntry]))
+    session.define_dataset(Dataset('GO', DS.GO, KbEntry, 'test', 'GO', codecs.CODECS[KbEntry]))
+    session.define_dataset(Dataset('CHEBI', DS.CHEBI, Molecule, 'test', 'CHEBI', mol_codec))
+    session.define_dataset(Dataset('RHEA', DS.RHEA, Reaction, 'test', 'RHEA', rxn_codec))
 
     # The KB proper - compiled, reconciled, integrated
     session.define_dataset(
-        Dataset('compounds', 'test', 'compounds', DS.get('CANON'), Molecule, mol_codec, canonical=True))
+        Dataset('compounds', DS.get('CANON'), Molecule, 'test', 'compounds', mol_codec, canonical=True))
     session.define_dataset(
-        Dataset('reactions', 'test', 'reactions', DS.get('CANON'), Reaction, rxn_codec, canonical=True))
+        Dataset('reactions', DS.get('CANON'), Reaction, 'test', 'reactions', rxn_codec, canonical=True))
     session.define_dataset(
-        Dataset('pathways', 'test', 'pathways', DS.get('CANON'), Pathway, pathway_codec, canonical=True))
+        Dataset('pathways', DS.get('CANON'), Pathway, 'test', 'pathways', pathway_codec, canonical=True))
     return session
 
 
@@ -340,10 +340,10 @@ def legacy_kb(uri: str = 'mongodb://127.0.0.1:27017'):
     )
 
     # Reference datasets (local copies of external sources)
-    session.define_dataset(Dataset('EC', 'legacy', 'EC', DS.EC, KbEntry, codec=codecs.CODECS[KbEntry]))
-    session.define_dataset(Dataset('GO', 'legacy', 'GO', DS.GO, KbEntry, codec=codecs.CODECS[KbEntry]))
-    session.define_dataset(Dataset('CHEBI', 'legacy', 'CHEBI', DS.CHEBI, Molecule, codec=mol_codec))
-    session.define_dataset(Dataset('RHEA', 'legacy', 'RHEA', DS.RHEA, Reaction, codec=codecs.ObjectCodec(
+    session.define_dataset(Dataset('EC', DS.EC, KbEntry, 'legacy', 'EC', codec=codecs.CODECS[KbEntry]))
+    session.define_dataset(Dataset('GO', DS.GO, KbEntry, 'legacy', 'GO', codec=codecs.CODECS[KbEntry]))
+    session.define_dataset(Dataset('CHEBI', DS.CHEBI, Molecule, 'legacy', 'CHEBI', codec=mol_codec))
+    session.define_dataset(Dataset('RHEA', DS.RHEA, Reaction, 'legacy', 'RHEA', codec=codecs.ObjectCodec(
         Reaction,
         parent=codecs.CODECS[KbEntry],
         codec_map={
@@ -354,9 +354,9 @@ def legacy_kb(uri: str = 'mongodb://127.0.0.1:27017'):
 
     # The KB proper - compiled, reconciled, integrated
     session.define_dataset(
-        Dataset('compounds', 'legacy', 'compounds', DS.get('CANON'), Molecule, codec=mol_codec, canonical=True))
+        Dataset('compounds', DS.get('CANON'), Molecule, 'legacy', 'compounds', codec=mol_codec, canonical=True))
     session.define_dataset(
-        Dataset('reactions', 'legacy', 'reactions', DS.get('CANON'), Reaction, canonical=True, codec=codecs.ObjectCodec(
+        Dataset('reactions', DS.get('CANON'), Reaction, 'legacy', 'reactions', canonical=True, codec=codecs.ObjectCodec(
             Reaction,
             parent=codecs.CODECS[KbEntry],
             codec_map={
@@ -365,7 +365,7 @@ def legacy_kb(uri: str = 'mongodb://127.0.0.1:27017'):
             }
         )))
     session.define_dataset(
-        Dataset('pathways', 'legacy', 'pathways', DS.get('CANON'), Pathway, canonical=True, codec=codecs.ObjectCodec(
+        Dataset('pathways', DS.get('CANON'), Pathway, 'legacy', 'pathways', canonical=True, codec=codecs.ObjectCodec(
             Pathway,
             parent=codecs.CODECS[KbEntry],
             codec_map={
