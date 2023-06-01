@@ -1,15 +1,17 @@
 """Tests for mosmo.knowledge.kb.Session."""
+import codecs
 from typing import Optional
 from warnings import warn
 
 from pymongo import MongoClient, timeout
 from pymongo.errors import ConnectionFailure
 
+from mosmo.knowledge.codecs import CODECS
 from mosmo.knowledge.kb import Session, Dataset
 from mosmo.model import KbEntry, DbXref, DS
 
-TEST = Dataset("TEST", "test", "test", DS.get("TEST"), KbEntry)
-TEST_CANON = Dataset("CANON", "test", "canon", DS.get("CANON"), KbEntry, canonical=True)
+TEST = Dataset("TEST", "test", "test", DS.get("TEST"), KbEntry, codec=CODECS[KbEntry])
+TEST_CANON = Dataset("CANON", "test", "canon", DS.get("CANON"), KbEntry, codec=CODECS[KbEntry], canonical=True)
 
 
 class TestSession:
@@ -140,7 +142,7 @@ class TestSession:
     def test_PutCopy(self):
         """Persisting an entry to a new dataset makes a copy."""
         session = self.mem_session()
-        session.define_dataset(Dataset("METOO", "test", "metoo", DS.get("METOO"), KbEntry))
+        session.define_dataset(Dataset("METOO", "test", "metoo", DS.get("METOO"), KbEntry, codec=CODECS[KbEntry]))
         obj = KbEntry("obj", name="The object.")
         session.put(TEST, obj)
         assert session("TEST:obj") is obj

@@ -7,7 +7,7 @@ from typing import Any, Dict, Iterable, List, Optional, Type
 from pymongo import MongoClient
 
 from mosmo.knowledge import codecs
-from mosmo.model import Datasource, DS, DbXref, KbEntry, Molecule, Reaction, Pathway
+from mosmo.model import Datasource, DS, DbXref, KbEntry, Molecule, Reaction, Pathway, Specialization, Variation
 
 
 @dataclass(eq=True, order=True, frozen=True)
@@ -22,8 +22,8 @@ class Dataset:
     collection: str
     datasource: Datasource
     content_type: Type[KbEntry]
+    codec: codecs.Codec
     canonical: bool = False
-    codec: codecs.Codec = None
 
     def __repr__(self):
         return f'{self.name}: [{self.client_db}.{self.collection}] ({self.datasource.id}/{self.content_type.__name__})'
@@ -87,8 +87,7 @@ class Session:
     def _cache_value(self, dataset: Dataset, doc) -> KbEntry:
         """Decodes a document from storage into the in-memory cache for the specified dataset."""
         if doc['_id'] not in self._cache[dataset]:
-            codec = dataset.codec or codecs.CODECS[dataset.content_type]
-            entry = codec.decode(doc)
+            entry = dataset.codec.decode(doc)
             if entry.db is None:
                 entry.db = dataset.datasource
             self._cache[dataset][doc['_id']] = entry
@@ -134,8 +133,7 @@ class Session:
             self._cache[dataset].pop(entry.id, None)
 
         if self.client is not None:
-            codec = dataset.codec or codecs.CODECS[dataset.content_type]
-            doc = codec.encode(entry)
+            doc = dataset.codec.encode(entry)
             self.client[dataset.client_db][dataset.collection].replace_one({'_id': entry.id}, doc, upsert=True)
 
     def find(self, dataset: Dataset, name: str, include_aka=True) -> List[KbEntry]:
@@ -228,8 +226,91 @@ class Session:
                 return entry
 
 
+class XrefCodec(codecs.Codec):
+    """Session-aware Codec encoding a KbEntry as a DbXref."""
+
+    def __init__(self, session: Session, clazz: Type):
+        self.session = session
+        self.delegate = codecs.CODECS[DbXref]
+        self.clazz = clazz
+
+    def encode(self, entry):
+        return self.delegate.encode(entry.ref())
+
+    def decode(self, doc):
+        xref = self.delegate.decode(doc)
+        if self.session:
+            return self.session.deref(xref, self.clazz)
+        else:
+            return xref
+
+
+def configure_kb(uri: str = 'mongodb://127.0.0.1:27017'):
+    """Returns a Session object configured to access all reference and canonical KB datasets."""
+    session = Session(MongoClient(uri))
+
+    variation_codec = codecs.ObjectCodec(Variation, codec_map={'form_names': codecs.ListCodec()})
+    specialization_codec = codecs.ObjectCodec(Specialization, codec_map={'form': codecs.ListCodec(list_type=tuple)})
+    mol_codec = codecs.ObjectCodec(
+        Molecule,
+        parent=codecs.CODECS[KbEntry],
+        codec_map={
+            'variations': codecs.ListCodec(item_codec=variation_codec),
+            'canonical_form': specialization_codec,
+            'default_form': specialization_codec,
+        }
+    )
+
+    rxn_codec = codecs.ObjectCodec(
+        Reaction,
+        parent=codecs.CODECS[KbEntry],
+        codec_map={
+            'stoichiometry': codecs.MappingCodec(key_codec=XrefCodec(session, Molecule)),
+            'catalyst': XrefCodec(session, Molecule),
+        }
+    )
+
+    pathway_codec = codecs.ObjectCodec(
+        Pathway,
+        parent=codecs.CODECS[KbEntry],
+        codec_map={
+            'metabolites': codecs.ListCodec(item_codec=XrefCodec(session, Molecule)),
+            'steps': codecs.ListCodec(item_codec=XrefCodec(session, Reaction)),
+            'enzymes': codecs.ListCodec(item_codec=XrefCodec(session, Molecule)),
+        }
+    )
+
+    # Reference datasets (local copies of external sources)
+    session.define_dataset(Dataset('EC', 'test', 'EC', DS.EC, KbEntry, codecs.CODECS[KbEntry]))
+    session.define_dataset(Dataset('GO', 'test', 'GO', DS.GO, KbEntry, codecs.CODECS[KbEntry]))
+    session.define_dataset(Dataset('CHEBI', 'test', 'CHEBI', DS.CHEBI, Molecule, mol_codec))
+    session.define_dataset(Dataset('RHEA', 'test', 'RHEA', DS.RHEA, Reaction, rxn_codec))
+
+    # The KB proper - compiled, reconciled, integrated
+    session.define_dataset(
+        Dataset('compounds', 'test', 'compounds', DS.get('CANON'), Molecule, mol_codec, canonical=True))
+    session.define_dataset(
+        Dataset('reactions', 'test', 'reactions', DS.get('CANON'), Reaction, rxn_codec, canonical=True))
+    session.define_dataset(
+        Dataset('pathways', 'test', 'pathways', DS.get('CANON'), Pathway, pathway_codec, canonical=True))
+    return session
+
+
+class ObjectIdCodec(codecs.Codec):
+    """DEPRECATED"""
+
+    def __init__(self, clazz):
+        self.clazz = clazz
+
+    def encode(self, obj):
+        return obj.id
+
+    def decode(self, id):
+        return self.clazz(id)
+
+
 class LookupCodec(codecs.Codec):
-    """Session-aware Codec encoding a KbEntry by its ID, and decoding by looking it up in a given dataset."""
+    """DEPRECATED"""
 
     def __init__(self, source, dataset):
         self._source = source
@@ -242,46 +323,55 @@ class LookupCodec(codecs.Codec):
         return self._source.get(self._dataset, id)
 
 
-def configure_kb(uri: str = 'mongodb://127.0.0.1:27017'):
-    """Returns a Session object configured to access all reference and canonical KB datasets."""
+def legacy_kb(uri: str = 'mongodb://127.0.0.1:27017'):
+    """Returns a Session object configured with a legacy schema."""
     session = Session(MongoClient(uri))
 
-    # Reference datasets (local copies of external sources)
-    session.define_dataset(Dataset('EC', 'ref', 'EC', DS.EC, KbEntry))
-    session.define_dataset(Dataset('GO', 'ref', 'GO', DS.GO, KbEntry))
-    session.define_dataset(Dataset('CHEBI', 'ref', 'CHEBI', DS.CHEBI, Molecule))
-    session.define_dataset(Dataset('RHEA', 'ref', 'RHEA', DS.RHEA, Reaction, codec=codecs.ObjectCodec(
-        Reaction,
+    variation_codec = codecs.ObjectCodec(Variation, codec_map={'form_names': codecs.ListCodec()})
+    specialization_codec = codecs.ObjectCodec(Specialization, codec_map={'form': codecs.ListCodec(list_type=tuple)})
+    mol_codec = codecs.ObjectCodec(
+        Molecule,
+        parent=codecs.CODECS[KbEntry],
         codec_map={
-            'db': codecs.DB_ID,
-            'xrefs': codecs.ListCodec(item_codec=codecs.CODECS[DbXref], list_type=set),
+            'variations': codecs.ListCodec(item_codec=variation_codec),
+            'canonical_form': specialization_codec,
+            'default_form': specialization_codec,
+        }
+    )
+
+    # Reference datasets (local copies of external sources)
+    session.define_dataset(Dataset('EC', 'legacy', 'EC', DS.EC, KbEntry, codec=codecs.CODECS[KbEntry]))
+    session.define_dataset(Dataset('GO', 'legacy', 'GO', DS.GO, KbEntry, codec=codecs.CODECS[KbEntry]))
+    session.define_dataset(Dataset('CHEBI', 'legacy', 'CHEBI', DS.CHEBI, Molecule, codec=mol_codec))
+    session.define_dataset(Dataset('RHEA', 'legacy', 'RHEA', DS.RHEA, Reaction, codec=codecs.ObjectCodec(
+        Reaction,
+        parent=codecs.CODECS[KbEntry],
+        codec_map={
             'stoichiometry': codecs.MappingCodec(key_codec=LookupCodec(session, session.CHEBI)),
-            'catalyst': codecs.MOL_ID,
-        },
-        rename={"id": "_id"}
+            'catalyst': ObjectIdCodec(Molecule),
+        }
     )))
 
     # The KB proper - compiled, reconciled, integrated
-    session.define_dataset(Dataset('compounds', 'kb', 'compounds', DS.get('CANON'), Molecule, canonical=True))
-    session.define_dataset(Dataset('reactions', 'kb', 'reactions', DS.get('CANON'), Reaction, canonical=True, codec=codecs.ObjectCodec(
-        Reaction,
-        codec_map={
-            'db': codecs.DB_ID,
-            'xrefs': codecs.ListCodec(item_codec=codecs.CODECS[DbXref], list_type=set),
-            'stoichiometry': codecs.MappingCodec(key_codec=LookupCodec(session, session.compounds)),
-            'catalyst': codecs.MOL_ID,
-        },
-        rename={"id": "_id"}
-    )))
-    session.define_dataset(Dataset('pathways', 'kb', 'pathways', DS.get('CANON'), Pathway, canonical=True, codec=codecs.ObjectCodec(
-        Pathway,
-        codec_map={
-            'db': codecs.DB_ID,
-            'xrefs': codecs.ListCodec(item_codec=codecs.CODECS[DbXref], list_type=set),
-            'metabolites': codecs.ListCodec(item_codec=LookupCodec(session, session.compounds)),
-            'steps': codecs.ListCodec(item_codec=LookupCodec(session, session.reactions)),
-            'enzymes': codecs.ListCodec(item_codec=codecs.MOL_ID),
-        },
-        rename={"id": "_id"}
-    )))
+    session.define_dataset(
+        Dataset('compounds', 'legacy', 'compounds', DS.get('CANON'), Molecule, codec=mol_codec, canonical=True))
+    session.define_dataset(
+        Dataset('reactions', 'legacy', 'reactions', DS.get('CANON'), Reaction, canonical=True, codec=codecs.ObjectCodec(
+            Reaction,
+            parent=codecs.CODECS[KbEntry],
+            codec_map={
+                'stoichiometry': codecs.MappingCodec(key_codec=LookupCodec(session, session.compounds)),
+                'catalyst': ObjectIdCodec(Molecule),
+            }
+        )))
+    session.define_dataset(
+        Dataset('pathways', 'legacy', 'pathways', DS.get('CANON'), Pathway, canonical=True, codec=codecs.ObjectCodec(
+            Pathway,
+            parent=codecs.CODECS[KbEntry],
+            codec_map={
+                'metabolites': codecs.ListCodec(item_codec=LookupCodec(session, session.compounds)),
+                'steps': codecs.ListCodec(item_codec=LookupCodec(session, session.reactions)),
+                'enzymes': codecs.ListCodec(item_codec=ObjectIdCodec(Molecule)),
+            }
+        )))
     return session

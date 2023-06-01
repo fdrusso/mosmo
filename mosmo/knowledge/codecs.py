@@ -6,9 +6,10 @@ implemented here is that we need to define schema relationships explicitly, with
 the system to infer them. This seems a manageable constraint.
 """
 import abc
-from typing import Callable, Iterable, Mapping
+from collections import ChainMap
+from typing import Callable, Iterable, Mapping, Optional, Type
 
-from mosmo.model import DS, DbXref, KbEntry, Molecule, Reaction, Pathway, Specialization, Variation
+from mosmo.model import Datasource, DS, DbXref, KbEntry
 
 
 class Codec(abc.ABC):
@@ -76,14 +77,35 @@ class MappingCodec(Codec):
         return self.mapping_type({self.key_codec.decode(k): self.value_codec.decode(v) for k, v in doc})
 
 
+class TableLookupCodec(Codec):
+    """Encodes an object by key; decodes by looking up that key in a table."""
+
+    def __init__(self, lookup, keyname="id"):
+        self.lookup = lookup
+        self.keyname = keyname
+
+    def encode(self, obj):
+        return obj.__dict__[self.keyname]
+
+    def decode(self, key):
+        return self.lookup.get(key)
+
+
 class ObjectCodec(Codec):
     """Encodes/decodes a python instance to a json-compatible dict."""
 
-    def __init__(self, clazz, codec_map: Mapping[str, Codec] = None, rename: Mapping[str, str] = None):
+    def __init__(self, clazz: Type, parent: Optional["ObjectCodec"] = None, codec_map: Mapping[str, Codec] = None,
+                 rename: Mapping[str, str] = None):
         self.clazz = clazz
-        self.codec_map = codec_map or {}
-        self.encoded_name = {}
-        self.decoded_name = {}
+        if parent:
+            self.codec_map = ChainMap(codec_map, parent.codec_map)
+            self.encoded_name = ChainMap(parent.encoded_name)
+            self.decoded_name = ChainMap(parent.decoded_name)
+        else:
+            self.codec_map = codec_map or {}
+            self.encoded_name = {}
+            self.decoded_name = {}
+
         if rename:
             for decoded, encoded in rename.items():
                 self.encoded_name[decoded] = encoded
@@ -107,73 +129,14 @@ class ObjectCodec(Codec):
         return self.clazz(**args)
 
 
-class ObjectIdCodec(Codec):
-    """(Lossy) codec that encodes only the ID of an object, and decodes it as an otherwise empty object.
-
-    This is useful for cases where the document includes only a reference to the object, but the caller either does
-    not know, or does not care about the details of that object.
-    """
-
-    def __init__(self, clazz):
-        self.clazz = clazz
-
-    def encode(self, obj):
-        return obj.id
-
-    def decode(self, id):
-        return self.clazz(id)
-
-
-DB_ID = ObjectIdCodec(lambda id: DS.get(id))
-MOL_ID = ObjectIdCodec(Molecule)
-RXN_ID = ObjectIdCodec(Reaction)
-
-CODECS = {
-    DbXref: ObjectCodec(DbXref, {'db': DB_ID}),
-    Variation: ObjectCodec(Variation, {'form_names': ListCodec()}),
-    Specialization: ObjectCodec(Specialization, {'form': ListCodec(list_type=tuple)}),
-}
-
+CODECS = {}
+CODECS[Datasource] = TableLookupCodec(DS)
+CODECS[DbXref] = ObjectCodec(DbXref, codec_map={"db": CODECS[Datasource]})
 CODECS[KbEntry] = ObjectCodec(
     KbEntry,
     codec_map={
-        'db': DB_ID,
+        'db': CODECS[Datasource],
         'xrefs': ListCodec(item_codec=CODECS[DbXref], list_type=set)
-    },
-    rename={"id": "_id"}
-)
-
-CODECS[Molecule] = ObjectCodec(
-    Molecule,
-    codec_map={
-        'db': DB_ID,
-        'xrefs': ListCodec(item_codec=CODECS[DbXref], list_type=set),
-        'variations': ListCodec(item_codec=CODECS[Variation]),
-        'canonical_form': CODECS[Specialization],
-        'default_form': CODECS[Specialization],
-    },
-    rename={"id": "_id"}
-)
-
-CODECS[Reaction] = ObjectCodec(
-    Reaction,
-    codec_map={
-        'db': DB_ID,
-        'xrefs': ListCodec(item_codec=CODECS[DbXref], list_type=set),
-        'stoichiometry': MappingCodec(key_codec=MOL_ID),
-        'catalyst': MOL_ID,
-    },
-    rename={"id": "_id"}
-)
-
-CODECS[Pathway] = ObjectCodec(
-    Pathway,
-    codec_map={
-        'db': DB_ID,
-        'xrefs': ListCodec(item_codec=CODECS[DbXref], list_type=set),
-        'metabolites': ListCodec(item_codec=MOL_ID),
-        'steps': ListCodec(item_codec=RXN_ID),
-        'enzymes': ListCodec(item_codec=MOL_ID),
     },
     rename={"id": "_id"}
 )
