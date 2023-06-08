@@ -240,9 +240,10 @@ class XrefCodec(codecs.Codec):
     def decode(self, doc):
         xref = self.delegate.decode(doc)
         if self.session:
-            return self.session.deref(xref, self.clazz)
-        else:
-            return xref
+            obj = self.session.deref(xref, self.clazz)
+            if obj:
+                return obj
+        return self.clazz(id=xref.id, db=xref.db)
 
 
 def configure_kb(uri: str = 'mongodb://127.0.0.1:27017'):
