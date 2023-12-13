@@ -22,7 +22,7 @@ class Color:
             raise ValueError("Hex color string of style '#rrggbb' required")
 
     def __str__(self):
-        return f"#{int(self.r + 0.5):2x}{int(self.g + 0.5):2x}{int(self.b + 0.5):2x}"
+        return f"#{int(self.r + 0.5):02x}{int(self.g + 0.5):02x}{int(self.b + 0.5):02x}"
 
     def __add__(self, color: "Color"):
         return Color(self.r + color.r, self.g + color.g, self.b + color.b)
