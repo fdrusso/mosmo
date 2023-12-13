@@ -246,12 +246,14 @@ class EscherMap:
                  height: Optional[Union[str, float, int]] = None,
                  reaction_scale: Optional[Scale] = None,
                  reaction_data: Optional[Mapping[str, float]] = None,
+                 reaction_direction: Optional[Mapping[str, float]] = None,
                  metabolite_scale: Optional[Scale] = None,
                  metabolite_data: Optional[Mapping[str, float]] = None):
         self.width = width
         self.height = height
         self.reaction_scale = reaction_scale
         self.reaction_data = reaction_data if reaction_data is not None else {}
+        self.reaction_direction = reaction_direction if reaction_direction is not None else {}
         self.metabolite_scale = metabolite_scale
         self.metabolite_data = metabolite_data if metabolite_data is not None else {}
         self._widget = None
@@ -277,7 +279,8 @@ class EscherMap:
     def to_svg(
             self,
             metabolite_data: Optional[Mapping[str, float]] = None,
-            reaction_data: Optional[Mapping[str, float]] = None):
+            reaction_data: Optional[Mapping[str, float]] = None,
+            reaction_direction: Optional[Mapping[str, float]] = None):
 
         # Background canvas
         canvas = Element("rect",
@@ -287,10 +290,13 @@ class EscherMap:
         # Reactions with segments and labels, possibly styled according to data values
         if reaction_data is None:
             reaction_data = self.reaction_data
+        if reaction_direction is None:
+            reaction_direction = self.reaction_direction
         reactions = Element("g",
                             {"id": "reactions", "fill": "none", "stroke": "#334e75", "stroke-width": 10},
                             children=[
-                                reaction.to_svg(reaction_data.get(reaction.reaction_id))
+                                reaction.to_svg(reaction_data.get(reaction.reaction_id),
+                                                reaction_direction.get(reaction.reaction_id))
                                 for reaction in self.reactions
                             ])
         if len(reaction_data) > 0:  # evaluates correctly for pandas Series as well as dict
@@ -333,10 +339,15 @@ class EscherMap:
 
     def draw(self,
              metabolite_data: Optional[Mapping[str, float]] = None,
-             reaction_data: Optional[Mapping[str, float]] = None) -> Output:
+             reaction_data: Optional[Mapping[str, float]] = None,
+             reaction_direction: Optional[Mapping[str, float]] = None) -> Output:
         self.widget.clear_output(wait=True)
         with self.widget:
-            display(SVG(self.to_svg(metabolite_data=metabolite_data, reaction_data=reaction_data).render()))
+            svg = self.to_svg(
+                metabolite_data=metabolite_data,
+                reaction_data=reaction_data,
+                reaction_direction=reaction_direction)
+            display(SVG(svg.render()))
         return self.widget
 
 
@@ -396,7 +407,7 @@ class MapReaction:
         for segment_json in reaction_json["segments"].values():
             self.segments.append(MapSegment(self, segment_json, all_nodes))
 
-    def to_svg(self, value=None) -> Element:
+    def to_svg(self, value=None, direction=None) -> Element:
         scale = self.parent.reaction_scale
         if scale is not None and value is not None:
             color, size = scale.style(value)
@@ -412,7 +423,9 @@ class MapReaction:
                     "stroke": color,
                     "stroke-width": size,
                 })
-                if segment.metabolite_id is not None and segment.count * value > 0:
+                if direction is None:
+                    direction = value
+                if segment.metabolite_id is not None and segment.count * direction > 0:
                     element.attrs["marker-end"] = "url(#arrowhead)"
                 else:
                     element.attrs["marker-end"] = None
