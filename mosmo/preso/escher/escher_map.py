@@ -9,33 +9,53 @@ from ipywidgets import Output
 
 # Default Escher styles
 CSS = """
-    #canvas {
-      fill: #ffffff;
-      stroke: #cccccc;
-    }
-    .label {
-      font-family: sans-serif;
-      font-style: italic;
-      font-weight: bold;
-      stroke: none;
-      text-rendering: optimizelegibility;
-    }
-    #reactions .label {
-      font-size: 30px;
-      fill: #334e75;
-    }
-    #reactions .label.stoich {
-      font-size: 12px;
-      fill: #334e75;
-    }
-    #metabolites .label {
-      font-size: 20px;
-      fill: black;
-    }
+#canvas {
+  fill: #ffffff;
+  stroke: #cccccc;
+}
+text {
+  font-family: sans-serif;
+  font-style: italic;
+  font-weight: bold;
+  stroke: none;
+  text-rendering: optimizelegibility;
+}
+#reactions text {
+  font-size: 30px;
+  fill: #334e75;
+}
+#reactions text.stoich {
+  font-size: 12px;
+}
+#metabolites text {
+  font-size: 20px;
+  fill: black;
+}
+#reactions {
+  fill: none;
+  stroke: #334e75;
+  stroke-width: 10;
+}
+#reactions.data {
+  stroke: #eeeeee;  /* default overridden by reaction_scale */
+}
+#reactions .arrowhead {
+  fill: #334e75;
+  stroke: none;
+}
+#reactions.data .arrowhead {
+  fill: #eeeeee;  /* default overridden by reaction_scale */
+}
+#metabolites {
+  fill: #e0865b;
+  stroke: #a24510;
+  stroke-width: 2;
+}
+#metabolites.data {
+  fill: #eeeeee;  /* default overridden by metabolite_scale */
+  stroke: none;
+}
 """
-MET_FILL = "#e0865b"
-MET_STROKE = "#a24510"
-RXN_STROKE = "#334e75"
 
 
 @dataclass
@@ -215,69 +235,56 @@ class EscherMap:
             reaction_data: Optional[Mapping[str, float]] = None,
             reaction_direction: Optional[Mapping[str, float]] = None) -> ET.Element:
 
-        svg = ET.Element("svg",
-                         {"width": str(self.width),
-                          "height": str(self.height),
-                          "viewBox": f"{self.origin[0]} {self.origin[1]} {self.size[0]} {self.size[1]}"}
-                         )
-        defs = ET.Element("defs")
-        svg.append(defs)
-
-        style = ET.Element("style", {"type": "text/css"})
-        style.text = CSS
-        defs.append(style)
-
-        marker = ET.Element("marker", {"id": "arrowhead", "viewBox": "0 -10 13 20", "refX": "2", "refY": "0",
-                                       "markerUnits": "strokeWidth", "markerWidth": "2", "markerHeight": "2",
-                                       "orient": "auto"})
-        marker.append(ET.Element("path", {"d": "M 0 -10 L 13 0 L 0 10 Z", "fill": "#334e75", "stroke": "none"}))
-        defs.append(marker)
-
-        root = ET.Element("g", {"id": "eschermap"})
-        svg.append(root)
-
-        # Background canvas
-        root.append(
-            ET.Element("rect",
-                       {"id": "canvas",
-                        "x": str(self.origin[0]),
-                        "y": str(self.origin[1]),
-                        "width": str(self.size[0]),
-                        "height": str(self.size[1])}
-                       ))
-
-        # Reactions with segments and labels, possibly styled according to data values
-        reactions = ET.Element("g", {"id": "reactions", "fill": "none", "stroke": RXN_STROKE, "stroke-width": "10"})
-        if reaction_data:
-            # Change the default to de-emphasize elements with missing data
-            reactions.set("stroke", "#eeeeee")
-            reactions.set("stroke-width", "5")
-        root.append(reactions)
-
         if reaction_data is None:
             reaction_data = {}
         if reaction_direction is None:
             reaction_direction = reaction_data
+        if metabolite_data is None:
+            metabolite_data = {}
+
+        svg = ET.Element("svg",
+                         {"width": str(self.width),
+                          "height": str(self.height),
+                          "viewBox": f"{self.origin[0]:.1f} {self.origin[1]:.1f} {self.size[0]:.1f} {self.size[1]:.1f}"}
+                         )
+        defs = ET.Element("defs")
+        defs.append(ET.Element("style", {"type": "text/css"}))
+        defs[-1].text = CSS
+        svg.append(defs)
+
+        maproot = ET.Element("g", {"id": "eschermap"})
+        # Background canvas
+        maproot.append(
+            ET.Element("rect",
+                       {"id": "canvas",
+                        "x": f"{self.origin[0]:.1f}",
+                        "y": f"{self.origin[1]:.1f}",
+                        "width": f"{self.size[0]:.1f}",
+                        "height": f"{self.size[1]:.1f}"}
+                       ))
+
+        # Reactions with segments and labels, possibly styled according to data values
+        reactions = ET.Element("g", {"id": "reactions"})
+        if reaction_data:
+            reactions.set("class", "data")
+
         for reaction in self.reactions:
             value = reaction_data.get(reaction.reaction_id)
             direction = reaction_direction.get(reaction.reaction_id)
             reactions.append(reaction.to_svg(value, direction))
+        maproot.append(reactions)
 
         # Metabolite nodes, possibly styled according to data values
-        metabolites = ET.Element("g",
-                                 {"id": "metabolites", "fill": MET_FILL, "stroke": MET_STROKE, "stroke-width": "2"})
+        metabolites = ET.Element("g", {"id": "metabolites"})
         if metabolite_data:
-            # Change the default to de-emphasize elements with missing data
-            metabolites.set("fill", "#eeeeee")
-            metabolites.set("stroke", "none")
-        root.append(metabolites)
+            metabolites.set("class", "data")
 
-        if metabolite_data is None:
-            metabolite_data = {}
         for metabolite in self.metabolites:
             value = metabolite_data.get(metabolite.metabolite_id)
             metabolites.append(metabolite.to_svg(value))
+        maproot.append(metabolites)
 
+        svg.append(maproot)
         return svg
 
     @property
@@ -324,15 +331,14 @@ class MapMetabolite(MapNode):
             return 12.
 
     def to_svg(self, value=None) -> ET.Element:
-        circle = ET.Element("circle", {"cx": str(self.center[0]), "cy": str(self.center[1]), "r": str(self.size())})
+        circle = ET.Element("circle",
+                            {"cx": f"{self.center[0]:.1f}", "cy": f"{self.center[1]:.1f}", "r": f"{self.size():.1f}"})
         if value is not None and self.parent.metabolite_scale is not None:
-            # Override fill, stroke, and radius
             color, size = self.parent.metabolite_scale.style(value)
-            circle.set("fill", str(color))
-            circle.set("stroke", "none")
-            circle.set("r", str(size))
+            circle.set("r", f"{size:.1f}")
+            circle.set("style", f"fill: {str(color)};")
 
-        label = ET.Element("text", {"class": "label", "x": str(self.label_pos[0]), "y": str(self.label_pos[1])})
+        label = ET.Element("text", {"x": f"{self.label_pos[0]:.1f}", "y": f"{self.label_pos[1]:.1f}"})
         label.text = self.metabolite_id
 
         group = ET.Element("g", {"name": self.metabolite_id})
@@ -355,26 +361,17 @@ class MapReaction:
                          reaction_json["segments"].values()]
 
     def to_svg(self, value=None, direction=None) -> ET.Element:
-        color, size = None, None  # Inherit defaults
+        group = ET.Element("g", {"name": self.reaction_id})
         if value is not None and self.parent.reaction_scale is not None:
             color, size = self.parent.reaction_scale.style(value)
+            # group.set("stroke", str(color))
+            # group.set("stroke-width", f"{size:.1f}")
+            group.set("style", f"stroke: {str(color)}; stroke-width: {size:.1f};")
 
-        group = ET.Element("g", {"name": self.reaction_id})
         for segment in self.segments:
-            arc = segment.to_svg()
-            # Override stroke, width, and arrowheads to indicate reaction flux
-            if color is not None:
-                arc.set("stroke", str(color))
-            if size is not None:
-                arc.set("stroke-width", str(size))
-            if direction is not None and segment.count is not None:
-                if segment.count * direction > 0:
-                    arc.set("marker-end", "url(#arrowhead)")
-                else:
-                    arc.set("marker-end", "")
-            group.append(arc)
+            group.append(segment.to_svg(value, direction))
 
-        label = ET.Element("text", {"class": "label", "x": str(self.label_pos[0]), "y": str(self.label_pos[1])})
+        label = ET.Element("text", {"x": f"{self.label_pos[0]:.1f}", "y": f"{self.label_pos[1]:.1f}"})
         label.text = self.reaction_id
         group.append(label)
         return group
@@ -382,6 +379,9 @@ class MapReaction:
 
 class MapSegment:
     """A single connection tying a metabolite to a reaction, or nodes within a reaction."""
+
+    # This arrowhead is sized for a stroke-width of 10.
+    ARROWHEAD = ET.Element("path", {"d": "M 0 -10 L 13 0 L 0 10 Z", "transform": "translate(-3)"})
 
     def __init__(self, reaction: MapReaction, segment_json, all_nodes: Mapping[str, MapNode]):
         self.reaction = reaction
@@ -399,13 +399,24 @@ class MapSegment:
         if isinstance(self.to_node, MapMetabolite):
             self.metabolite_id = self.to_node.metabolite_id
             self.count = reaction.stoich[self.metabolite_id]
-            self.has_arrow = self.count > 0 or reaction.reversible
         else:
             self.metabolite_id = None
             self.count = None
-            self.has_arrow = False
 
-    def to_svg(self) -> ET.Element:
+    def arrowhead(self, x: float, y: float, angle: float, value: float) -> ET.Element:
+        """Manually define an arrowhead glyph at the specified position and angle."""
+        arrowhead = ET.Element("g",
+                               {"class": "arrowhead",
+                                "transform": f"translate({x:.1f}, {y:.1f}) rotate({angle:.0f})"})
+        arrowhead.append(MapSegment.ARROWHEAD)
+        if value is not None and self.reaction.parent.reaction_scale is not None:
+            color, size = self.reaction.parent.reaction_scale.style(value)
+            arrowhead.set("transform", arrowhead.get("transform") + f" scale({size / 10:.1f})")
+            # Note setting the style attribute takes precedence over CSS, where setting fill directly does not.
+            arrowhead.set("style", f"fill: {str(color)}")
+        return arrowhead
+
+    def to_svg(self, value: float, direction: float) -> ET.Element:
         start = self.from_node.center
         end = self.to_node.center
 
@@ -414,6 +425,12 @@ class MapSegment:
             return ET.Element("path", {"d": f"M {start[0]:.1f} {start[1]:.1f} L {end[0]:.1f} {end[1]:.1f}"})
         # else...
 
+        has_arrow = False
+        if direction is not None and self.count * direction > 0:
+            has_arrow = True
+        elif direction is None and (self.reaction.reversible or self.count > 0):
+            has_arrow = True
+
         # Adjust the endpoint to approach the metabolite node but stop at a padded distance from it.
         approach = self.b2 or start  # tolerate missing b2
         dx = end[0] - approach[0]
@@ -421,7 +438,7 @@ class MapSegment:
         l = math.sqrt(dx * dx + dy * dy)
 
         # Some fine-tuning to try to match escher's existing behavior.
-        padding = 20. if self.has_arrow else 10.
+        padding = 20. if has_arrow else 10.
         minlen = 5.
         _l = l - self.to_node.size() - padding
         if _l < minlen:
@@ -430,24 +447,29 @@ class MapSegment:
         end = (approach[0] + dx * ratio, approach[1] + dy * ratio)
 
         if self.b1 and self.b2:
-            path_attrs = {"d": f"M {start[0]:.1f} {start[1]:.1f} C {self.b1[0]:.1f} {self.b1[1]:.1f}" +
-                               f" {self.b2[0]:.1f} {self.b2[1]:.1f} {end[0]:.1f} {end[1]:.1f}"}
+            arc = ET.Element("path", {
+                "d": f"M {start[0]:.1f} {start[1]:.1f} C {self.b1[0]:.1f} {self.b1[1]:.1f}" +
+                     f" {self.b2[0]:.1f} {self.b2[1]:.1f} {end[0]:.1f} {end[1]:.1f}"})
         else:
-            path_attrs = {"d": f"M {start[0]:.1f} {start[1]:.1f} L {end[0]:.1f} {end[1]:.1f}"}
-        if self.has_arrow:
-            path_attrs["marker-end"] = "url(#arrowhead)"
-        path = ET.Element("path", path_attrs)
+            arc = ET.Element("path", {"d": f"M {start[0]:.1f} {start[1]:.1f} L {end[0]:.1f} {end[1]:.1f}"})
+
+        if has_arrow:
+            # Previous attempts with either <marker> or <symbol> failed to behave as needed. Just make it explicit.
+            _arc = ET.Element("g")
+            _arc.append(arc)
+            _arc.append(self.arrowhead(end[0], end[1], math.atan2(dy, dx) * 180 / math.pi, value))
+            arc = _arc
 
         count = abs(self.count)
         if count == 1:
-            return path
+            return arc
         else:
             group = ET.Element("g")
-            group.append(path)
+            group.append(arc)
 
             label_x = end[0] + dy / l * 24
             label_y = end[1] - dx / l * 24
-            stoich_label = ET.Element("text", {"class": "label stoich", "x": str(label_x), "y": str(label_y)})
+            stoich_label = ET.Element("text", {"class": "stoich", "x": f"{label_x:.1f}", "y": f"{label_y:.1f}"})
             stoich_label.text = str(count)
             group.append(stoich_label)
             return group
