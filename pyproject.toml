@@ -23,7 +23,6 @@ classifiers = [
 ]
 dependencies = [
     "equilibrator-api>=0.4.7",
-    "ipywidgets>=8.0",
     "jax>=0.4.7",
     "jaxlib>=0.4.7",
     "numpy>=1.23",

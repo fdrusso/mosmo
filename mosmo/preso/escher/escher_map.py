@@ -4,9 +4,6 @@ import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from typing import Mapping, Optional, Tuple, Union
 
-from IPython.display import display, SVG
-from ipywidgets import Output
-
 # Default Escher styles
 CSS = """
 #canvas {
@@ -184,18 +181,14 @@ class EscherMap:
 
     Usage:
         diagram1 = EscherMap(json.loads(<mapfile>)))
-        diagram1.draw(width="20cm")
+        IPython.display.SVG(diagram1.draw(width="20cm"))
 
         diagram2 = EscherMap(json.loads(<mapfile>)), reaction_scale=GaBuRd(midval=1.5, maxval=10))
-        diagram2.draw(width="800px", reaction_data=<data>)
+        IPython.display.SVG(diagram2.draw(width="800px", reaction_data=<data>))
 
-    The draw() method renders the pathway to an
-    [Output](https://ipywidgets.readthedocs.io/en/stable/examples/Output%20Widget.html) widget, which displays
-    automatically in a jupyter notebook, or can be composed with other widgets as needed.
-
-    For greater control, use to_svg(), which returns a standard SVG document as an ET.Element. Users with web
-    development or CSS experience can manipulate this to fine-tune its appearance. This can be rendered to a string, or
-    saved to a file to be loaded into a drawing application such as Inkscape or Illustrator.
+    For greater control, use build(), which returns a standard SVG document as an ET.Element. Users with web development
+    or CSS experience can manipulate this to fine-tune its appearance. This can be rendered to a string, or saved to a
+    file to be loaded into a drawing application such as Inkscape or Illustrator.
     """
 
     def __init__(self,
@@ -227,13 +220,12 @@ class EscherMap:
         for reaction_id, reaction_json in map_json[1]["reactions"].items():
             self.reactions.append(MapReaction(self, reaction_json, all_nodes))
 
-        self._widget = None
-
-    def to_svg(
+    def build(
             self,
             metabolite_data: Optional[Mapping[str, float]] = None,
             reaction_data: Optional[Mapping[str, float]] = None,
             reaction_direction: Optional[Mapping[str, float]] = None) -> ET.Element:
+        """Renders a diagram with optional overlays of metabolite and/or reaction data, as an ET.Element structure."""
 
         if reaction_data is None:
             reaction_data = {}
@@ -271,7 +263,7 @@ class EscherMap:
         for reaction in self.reactions:
             value = reaction_data.get(reaction.reaction_id)
             direction = reaction_direction.get(reaction.reaction_id)
-            reactions.append(reaction.to_svg(value, direction))
+            reactions.append(reaction.build(value, direction))
         maproot.append(reactions)
 
         # Metabolite nodes, possibly styled according to data values
@@ -281,30 +273,22 @@ class EscherMap:
 
         for metabolite in self.metabolites:
             value = metabolite_data.get(metabolite.metabolite_id)
-            metabolites.append(metabolite.to_svg(value))
+            metabolites.append(metabolite.build(value))
         maproot.append(metabolites)
 
         svg.append(maproot)
         return svg
 
-    @property
-    def widget(self) -> Output:
-        if self._widget is None:
-            self._widget = Output()
-        return self._widget
-
     def draw(self,
              metabolite_data: Optional[Mapping[str, float]] = None,
              reaction_data: Optional[Mapping[str, float]] = None,
-             reaction_direction: Optional[Mapping[str, float]] = None) -> Output:
-        self.widget.clear_output(wait=True)
-        with self.widget:
-            svg = self.to_svg(
-                metabolite_data=metabolite_data,
-                reaction_data=reaction_data,
-                reaction_direction=reaction_direction)
-            display(SVG(ET.tostring(svg, encoding="unicode")))
-        return self.widget
+             reaction_direction: Optional[Mapping[str, float]] = None) -> str:
+        """Renders a diagram with optional overlays of metabolite and/or reaction data, as an SVG string."""
+        svg = self.build(
+            metabolite_data=metabolite_data,
+            reaction_data=reaction_data,
+            reaction_direction=reaction_direction)
+        return ET.tostring(svg, encoding="unicode")
 
 
 class MapNode:
@@ -330,7 +314,7 @@ class MapMetabolite(MapNode):
         else:
             return 12.
 
-    def to_svg(self, value=None) -> ET.Element:
+    def build(self, value=None) -> ET.Element:
         circle = ET.Element("circle",
                             {"cx": f"{self.center[0]:.1f}", "cy": f"{self.center[1]:.1f}", "r": f"{self.size():.1f}"})
         if value is not None and self.parent.metabolite_scale is not None:
@@ -360,7 +344,7 @@ class MapReaction:
         self.segments = [MapSegment(self, segment_json, all_nodes) for segment_json in
                          reaction_json["segments"].values()]
 
-    def to_svg(self, value=None, direction=None) -> ET.Element:
+    def build(self, value=None, direction=None) -> ET.Element:
         group = ET.Element("g", {"name": self.reaction_id})
         if value is not None and self.parent.reaction_scale is not None:
             color, size = self.parent.reaction_scale.style(value)
@@ -369,7 +353,7 @@ class MapReaction:
             group.set("style", f"stroke: {str(color)}; stroke-width: {size:.1f};")
 
         for segment in self.segments:
-            group.append(segment.to_svg(value, direction))
+            group.append(segment.build(value, direction))
 
         label = ET.Element("text", {"x": f"{self.label_pos[0]:.1f}", "y": f"{self.label_pos[1]:.1f}"})
         label.text = self.reaction_id
@@ -416,7 +400,7 @@ class MapSegment:
             arrowhead.set("style", f"fill: {str(color)}")
         return arrowhead
 
-    def to_svg(self, value: float, direction: float) -> ET.Element:
+    def build(self, value: float, direction: float) -> ET.Element:
         start = self.from_node.center
         end = self.to_node.center
 
