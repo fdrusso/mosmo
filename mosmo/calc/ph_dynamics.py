@@ -28,9 +28,9 @@ from mosmo.model import Molecule
 
 # Built-in definitions for key components, avoids dependence on any specific KB sources. If desired, these can safely
 # be replaced with application-specific definitions before using PhBuffer.
-PROTON = Molecule(_id='PROTON', name='proton', shorthand='H+', charge=+1)
-HYDROXYL = Molecule(_id='HYDROXYL', name='hydroxyl group', shorthand='OH-', charge=-1)
-WATER = Molecule(_id='WATER', name='water', shorthand='H2O', charge=0)
+PROTON = Molecule(id='PROTON', name='proton', shorthand='H+', charge=+1)
+HYDROXYL = Molecule(id='HYDROXYL', name='hydroxyl group', shorthand='OH-', charge=-1)
+WATER = Molecule(id='WATER', name='water', shorthand='H2O', charge=0)
 
 # The second-order rate constant assumed for all reactions H+ + {base} -> {acid}. Units: per Molar per sec.
 DEFAULT_KBACK = 1e9  # TODO: reference/justification for this value
