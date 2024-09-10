@@ -22,12 +22,11 @@ classifiers = [
     'Topic :: Scientific/Engineering :: Bio-Informatics',
 ]
 dependencies = [
-    "equilibrator-api>=0.4.7",
-    "jax>=0.4.7",
-    "jaxlib>=0.4.7",
-    "numpy>=1.23",
-    "pymongo>=4.3",
-    "scipy>=1.10",
+    "equilibrator-api>=0.6",
+    "jax>=0.4",
+    "numpy>=2.1",
+    "pymongo>=4.8",
+    "scipy>=1.12",
 ]
 
 [project.urls]
