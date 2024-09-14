@@ -1725,7 +1725,7 @@
             "coefficient": -1
           },
           {
-            "bigg_id": "Sed.D.7P",
+            "bigg_id": "Sed7P",
             "coefficient": -1
           },
           {
@@ -4096,7 +4096,7 @@
         "node_type": "metabolite",
         "x": 483.8942708969116,
         "y": 697.662109375,
-        "bigg_id": "Sed.D.7P",
+        "bigg_id": "Sed7P",
         "name": "D-sedoheptulose 7-phosphate",
         "label_x": 440.6942708969116,
         "label_y": 737.662109375,
