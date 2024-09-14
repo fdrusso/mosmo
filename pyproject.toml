@@ -11,7 +11,7 @@ authors = [
 license = {file = "LICENSE.txt"}
 description = "Molecular Systems Modeling toolkit"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.11"
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
