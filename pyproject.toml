@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mosmo"
-version = "0.0.3"
+version = "0.1.0"
 authors = [
   { name="Frank D Russo", email="fdrusso.42@gmail.com" },
 ]
@@ -30,8 +30,8 @@ dependencies = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/fdrusso/msmtk"
-"Bug Tracker" = "https://github.com/fdrusso/msmtk/issues"
+"Homepage" = "https://github.com/fdrusso/mosmo"
+"Bug Tracker" = "https://github.com/fdrusso/mosmo/issues"
 
 [tool.hatch.build]
 packages = ["mosmo"]
