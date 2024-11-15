@@ -29,6 +29,15 @@ dependencies = [
     "scipy>=1.12",
 ]
 
+[project.optional-dependencies]
+test = [
+    "pytest>=8.3",
+]
+
+deploy = [
+    "hatch>=1.12",
+]
+
 [project.urls]
 "Homepage" = "https://github.com/fdrusso/mosmo"
 "Bug Tracker" = "https://github.com/fdrusso/mosmo/issues"
