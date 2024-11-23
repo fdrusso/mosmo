@@ -4,6 +4,12 @@ from .core import Molecule, Reaction, Pathway
 
 
 DS.define(Datasource(
+    id="CANON",
+    name="Curated Knowledge Base",
+    home="https://github.com/fdrusso/mosmo"
+))
+
+DS.define(Datasource(
     id="BIGG",
     name="BiGG Models",
     home="http://bigg.ucsd.edu/",

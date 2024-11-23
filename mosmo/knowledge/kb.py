@@ -2,7 +2,8 @@
 import collections
 import copy
 from dataclasses import dataclass
-from typing import Any, Dict, Iterable, List, Optional, Type
+from typing import Any, Dict, Iterable, List, Optional, Type, Union
+import warnings
 
 from pymongo import MongoClient
 
@@ -153,8 +154,18 @@ class Session:
                     found.add(doc['_id'])
         return [self._cache_value(dataset, doc) for doc in docs]
 
-    def xref(self, dataset: Dataset, q) -> List[KbEntry]:
-        """Finds any number of entries in the dataset cross-referenced to the given query (DbXref or string)."""
+    def find_one(self, dataset: Dataset, name: str, include_aka=True, strict: bool = False) -> Optional[KbEntry]:
+        """Returns the first KB entry matching the given name, if any."""
+        found = self.find(dataset, name, include_aka)
+        if strict:
+            if not found:
+                raise ValueError(f'No hits to {name} found in {dataset.name}')
+            elif len(found) > 1:
+                warnings.warn(f'Multiple hits to {name} found in {dataset.name}')
+        return found[0] if found else None
+
+    def xref(self, dataset: Dataset, q: Union[DbXref, str]) -> List[KbEntry]:
+        """Finds any number of entries in the dataset cross-referenced to the given query."""
         xref = as_xref(q)
         query = {'xrefs.id': xref.id}
         if xref.db:
@@ -165,6 +176,16 @@ class Session:
                 {'locale': 'en', 'strength': 1}):
             results.append(self._cache_value(dataset, doc))
         return results
+
+    def xref_one(self, dataset: Dataset, q: Union[DbXref, str], strict: bool = False) -> Optional[KbEntry]:
+        """Returns the first entry in the dataset cross-referenced to the given query, if any."""
+        xrefs = self.xref(dataset, q)
+        if strict:
+            if not xrefs:
+                raise ValueError(f'No xref to {q} found in {dataset.name}')
+            elif len(xrefs) > 1:
+                warnings.warn(f'Multiple xrefs to {q} found in {dataset.name}')
+        return xrefs[0] if xrefs else None
 
     def deref(self, q, clazz: Optional[Type] = None) -> Optional[KbEntry]:
         """Retrieves the entry referred to by a DbXref or its string representation."""
@@ -289,9 +310,9 @@ def configure_kb(uri: str = 'mongodb://127.0.0.1:27017'):
 
     # The KB proper - compiled, reconciled, integrated
     session.define_dataset(
-        Dataset('compounds', DS.get('CANON'), Molecule, 'kb', 'compounds', mol_codec, canonical=True))
+        Dataset('compounds', DS.CANON, Molecule, 'kb', 'compounds', mol_codec, canonical=True))
     session.define_dataset(
-        Dataset('reactions', DS.get('CANON'), Reaction, 'kb', 'reactions', rxn_codec, canonical=True))
+        Dataset('reactions', DS.CANON, Reaction, 'kb', 'reactions', rxn_codec, canonical=True))
     session.define_dataset(
-        Dataset('pathways', DS.get('CANON'), Pathway, 'kb', 'pathways', pathway_codec, canonical=True))
+        Dataset('pathways', DS.CANON, Pathway, 'kb', 'pathways', pathway_codec, canonical=True))
     return session

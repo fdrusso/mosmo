@@ -70,6 +70,14 @@ class Molecule(KbEntry):
     def __repr__(self):
         return f"[{self.id}] {self.name}"
 
+    def _data_items(self):
+        return super()._data_items() | {
+            'formula': self.formula,
+            'mass': self.mass,
+            'charge': self.charge,
+            'inchi': self.inchi,
+        }
+
 
 @dataclass
 class Reaction(KbEntry):
@@ -84,7 +92,7 @@ class Reaction(KbEntry):
     """Whether or not this reaction should be treated as reversible"""
 
     @property
-    def formula(self):
+    def equation(self):
         """Human-readable compact summary of the reaction."""
         def reactant_term(reactant: Molecule, count: float) -> str:
             if count == 1:
@@ -104,8 +112,15 @@ class Reaction(KbEntry):
     def __hash__(self):
         return hash((type(self), self.id))
 
+    def _data_items(self):
+        return super()._data_items() | {
+            'equation': self.equation,
+            'reversible': self.reversible,
+            'catalyst': self.catalyst,
+        }
+
     def __repr__(self):
-        return f"[{self.id}] {self.formula}"
+        return f"[{self.id}] {self.equation}"
 
 
 @dataclass

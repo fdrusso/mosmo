@@ -1,4 +1,5 @@
 """Base classes with universal attributes for Knowledge Base entries."""
+import textwrap
 from dataclasses import dataclass, field
 from typing import List, Mapping, Optional, Set, Type
 
@@ -10,6 +11,9 @@ class Datasource:
     name: Optional[str] = field(default=None, compare=False)
     home: Optional[str] = field(default=None, compare=False)
     urlpat: Optional[Mapping[Type, str]] = field(default=None, compare=False)
+
+    def __repr__(self):
+        return f'[{self.id}] {self.name}'
 
 
 class _Registry:
@@ -102,6 +106,15 @@ class KbEntry:
         """A DbXref that refers to this KbEntry."""
         return DbXref(id=self.id, db=self.db)
 
+    def url(self):
+        if self.db:
+            return self.ref().url(type(self))
+        else:
+            return None
+
+    def xref_urls(self):
+        return [xref.url(type(self)) for xref in self.xrefs] if self.xrefs else []
+
     def same_as(self, other) -> bool:
         """Reusable by subclasses to simplify implementation of __eq__."""
         return (
@@ -123,3 +136,36 @@ class KbEntry:
     def label(self):
         """Compact designator of the entry, e.g. for plot labels. Shorthand is preferred, otherwise ID."""
         return self.shorthand or self.id
+
+    def data(self, max_width=60, sep=': ', indent='    '):
+        """Displays the contents of this entry. Intended for interactive contexts only.
+
+        This function delegates to _data_items, which can be overridden by subclasses to add more information.
+        """
+
+        lines = [str(self.ref())]
+        items = self._data_items()
+        label_width = max(len(label) for label in items.keys())
+        item_width = max_width - label_width - len(sep)
+        for label, value in items.items():
+            if isinstance(value, list):
+                lines.append(label + sep)
+                lines.extend(f'{indent}{v}' for v in value)
+            else:
+                value = str(value)
+                if len(value) <= item_width:
+                    lines.append(label + sep + value)
+                else:
+                    lines.append(label + sep)
+                    lines.extend(textwrap.wrap(value, width=max_width, initial_indent=indent, subsequent_indent=indent))
+        print('\n'.join(lines))
+
+    def _data_items(self):
+        """Key-value pairs for data(). Subclasses may override to supply additional items."""
+        return {
+            'name': self.name,
+            'shorthand': self.shorthand,
+            'aka': self.aka,
+            'description': self.description,
+            'xrefs': sorted(str(xref) for xref in self.xrefs) if self.xrefs else None
+        }
