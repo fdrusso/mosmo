@@ -1,4 +1,5 @@
 """Core classes defining objects and concepts used to construct models of molecular systems."""
+import collections
 from dataclasses import dataclass
 from typing import List, Mapping, Optional, Set, Tuple
 
@@ -112,15 +113,50 @@ class Reaction(KbEntry):
     def __hash__(self):
         return hash((type(self), self.id))
 
+    def __repr__(self):
+        return f"[{self.id}] {self.equation}"
+
+    def __add__(self, other):
+        """Combines this reaction with another."""
+        # Trick to support sum(): Adding any kind of 0 is supported
+        if not other:
+            return self
+        if not isinstance(other, Reaction):
+            raise ValueError(f"Reaction cannot be combined with type [{type(other)}]")
+
+        stoichiometry = collections.Counter()
+        stoichiometry.update(self.stoichiometry)
+        stoichiometry.update(other.stoichiometry)
+        return Reaction(
+            id = self.id + "+" + other.id,
+            db = None,
+            stoichiometry = {reactant: count for reactant, count in stoichiometry.items() if count != 0},
+        )
+
+    __radd__ = __add__
+
+    def __sub__(self, other):
+        return self + (other * -1)
+
+    def __mul__(self, other):
+        """Multiplies the effect of this reaction proportionally across all reactants."""
+        if not isinstance(other, (int, float)):
+            raise ValueError(f"Reaction cannot be multiplied by type [{type(other)}]")
+
+        return Reaction(
+            id = str(other) + "*" + self.id,
+            db = None,
+            stoichiometry = {reactant: other * count for reactant, count in self.stoichiometry.items()},
+        )
+
+    __rmul__ = __mul__
+
     def _data_items(self):
         return super()._data_items() | {
             'equation': self.equation,
             'reversible': self.reversible,
             'catalyst': self.catalyst,
         }
-
-    def __repr__(self):
-        return f"[{self.id}] {self.equation}"
 
 
 @dataclass
