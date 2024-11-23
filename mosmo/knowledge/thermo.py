@@ -22,20 +22,24 @@ class Thermodynamics:
 
     def cc_compound(self, molecule: Molecule):
         if molecule not in self._cc_compounds:
-            # Priority order as supported by eQuilibrator, as documented at
+            # Sources supported by eQuilibrator, as documented at
             # https://equilibrator.readthedocs.io/en/latest/tutorial.html#creating-a-compound-object
-            xrefs = {xref.db: xref.id for xref in molecule.xrefs or []}
-            if DS.METANETX in xrefs:
-                self._cc_compounds[molecule] = self.cc.get_compound(f"metanetx.chemical:" + xrefs[DS.METANETX])
-            elif DS.BIGG in xrefs:
-                self._cc_compounds[molecule] = self.cc.get_compound(f"bigg.metabolite:" + xrefs[DS.BIGG])
-            elif DS.KEGG in xrefs:
-                self._cc_compounds[molecule] = self.cc.get_compound(f"kegg:" + xrefs[DS.KEGG])
-            elif DS.CHEBI in xrefs:
-                self._cc_compounds[molecule] = self.cc.get_compound(f"chebi:CHEBI:" + xrefs[DS.CHEBI])
-            else:
-                # Prevent retrying unmatched compounds
-                self._cc_compounds[molecule] = None
+            xrefs = {xref.db: xref for xref in molecule.xrefs or []}
+            found = None
+            for ds, prefix in [
+                (DS.CHEBI, "chebi:CHEBI:"),
+                (DS.KEGG, "kegg:"),
+                (DS.METACYC, "metacyc.compound:"),
+                (DS.METANETX, "metanetx.chemical:"),
+
+                # Issue with BIGG ids - eQ does not recognize the _c or _e suffix
+                # (DS.BIGG, "bigg.metabolite:"),
+            ]:
+                if ds in xrefs:
+                    found = self.cc.get_compound(prefix + xrefs[ds].id)
+                    if found:
+                        break
+            self._cc_compounds[molecule] = found  # Do not retry on future calls, even if unmatched.
         return self._cc_compounds[molecule]
 
     def cc_reaction(self, reaction: Reaction) -> Optional[equilibrator_api.Reaction]:
