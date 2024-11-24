@@ -62,15 +62,6 @@ class Molecule(KbEntry):
     to ATP, but define that its default form is ATP [4-].
     """
 
-    def __eq__(self, other):
-        return self.same_as(other)
-
-    def __hash__(self):
-        return hash((type(self), self.id))
-
-    def __repr__(self):
-        return f"[{self.id}] {self.name}"
-
     def _data_items(self):
         return super()._data_items() | {
             'formula': self.formula,
@@ -78,6 +69,15 @@ class Molecule(KbEntry):
             'charge': self.charge,
             'inchi': self.inchi,
         }
+
+    def __eq__(self, other):
+        return self.same_as(other)
+
+    def __hash__(self):
+        return hash((type(self), self.id))
+
+    def __repr__(self):
+        return f"[{self.id}] {self.name or ''}"
 
 
 @dataclass
@@ -106,6 +106,13 @@ class Reaction(KbEntry):
         arrow = ' <=> ' if self.reversible else ' => '
 
         return ' + '.join(lhs) + arrow + ' + '.join(rhs)
+
+    def _data_items(self):
+        return super()._data_items() | {
+            'equation': self.equation,
+            'reversible': self.reversible,
+            'catalyst': self.catalyst,
+        }
 
     def __eq__(self, other):
         return self.same_as(other)
@@ -150,26 +157,3 @@ class Reaction(KbEntry):
         )
 
     __rmul__ = __mul__
-
-    def _data_items(self):
-        return super()._data_items() | {
-            'equation': self.equation,
-            'reversible': self.reversible,
-            'catalyst': self.catalyst,
-        }
-
-
-@dataclass
-class Pathway(KbEntry):
-    """A process encompassing multiple Reactions and their Molecules."""
-    steps: Set[Reaction] = None
-
-    metabolites: Set[Molecule] = None
-
-    enzymes: Set[Molecule] = None
-
-    def __eq__(self, other):
-        return self.same_as(other)
-
-    def __hash__(self):
-        return hash((type(self), self.id))

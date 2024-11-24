@@ -8,7 +8,8 @@ import warnings
 from pymongo import MongoClient
 
 from mosmo.knowledge import codecs
-from mosmo.model import Datasource, DS, DbXref, KbEntry, Molecule, Reaction, Pathway, Specialization, Variation
+from mosmo.model import Datasource, DS, DbXref, KbEntry, Molecule, Reaction, \
+    ReactionNetwork, Specialization, Variation
 
 
 @dataclass(eq=True, order=True, frozen=True)
@@ -293,13 +294,14 @@ def configure_kb(uri: str = 'mongodb://127.0.0.1:27017'):
     )
 
     pathway_codec = codecs.ObjectCodec(
-        Pathway,
+        ReactionNetwork,
         parent=codecs.CODECS[KbEntry],
         codec_map={
+            'reactions': codecs.ListCodec(item_codec=XrefCodec(session, Reaction)),
             'metabolites': codecs.ListCodec(item_codec=XrefCodec(session, Molecule)),
             'steps': codecs.ListCodec(item_codec=XrefCodec(session, Reaction)),
             'enzymes': codecs.ListCodec(item_codec=XrefCodec(session, Molecule)),
-        }
+        },
     )
 
     # Reference datasets (local copies of external sources)
@@ -314,5 +316,5 @@ def configure_kb(uri: str = 'mongodb://127.0.0.1:27017'):
     session.define_dataset(
         Dataset('reactions', DS.CANON, Reaction, 'kb', 'reactions', rxn_codec, canonical=True))
     session.define_dataset(
-        Dataset('pathways', DS.CANON, Pathway, 'kb', 'pathways', pathway_codec, canonical=True))
+        Dataset('pathways', DS.CANON, ReactionNetwork, 'kb', 'pathways', pathway_codec, canonical=True))
     return session

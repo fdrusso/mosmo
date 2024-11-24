@@ -1,6 +1,5 @@
 """Standard Datasource definitions."""
-from mosmo.model.base import Datasource, DS, KbEntry
-from mosmo.model.core import Molecule, Reaction, Pathway
+from mosmo.model import Datasource, DS, KbEntry, Molecule, Reaction, Pathway
 
 
 DS.define(Datasource(

@@ -81,7 +81,7 @@ class Index(Sequence[KE]):
         return [item.label for item in self._items]
 
 
-class ReactionNetwork:
+class ReactionNetwork(KbEntry):
     """General representation of a network of stoichiometric reactions.
 
     This class serves two main functions:
@@ -91,12 +91,19 @@ class ReactionNetwork:
       and the semantic Molecules and Reactions they correspond to.
     """
 
-    def __init__(self, reactions: Optional[Iterable[Reaction]] = None):
+    def __init__(self, reactions: Optional[Iterable[Reaction]] = None, **kwargs):
         """Initialize this reaction network.
 
         Args:
             reactions: a list of Reactions included in this network.
         """
+        # Handle legacy attribute names from Pathway
+        steps = kwargs.pop('steps', None)
+        if reactions is None:
+            reactions = steps
+        kwargs.pop('metabolites', None)
+        kwargs.pop('enzymes', None)
+        super().__init__(**kwargs)
 
         # Defer construction of the stoichiometry matrix until it is needed.
         self._s_matrix = None
@@ -136,3 +143,49 @@ class ReactionNetwork:
     def shape(self) -> Tuple[int, int]:
         """The 2D shape of this network, (#molecules, #reactions)."""
         return len(self.reactants), len(self.reactions)
+
+    def _data_items(self):
+        return super()._data_items() | {
+            'size': f'{len(self.reactions)} reactions over {len(self.reactants)} molecules.',
+            'reactions': list(self.reactions),
+        }
+
+    def __eq__(self, other):
+        return self.same_as(other)
+
+    def __hash__(self):
+        return hash((type(self), self.id))
+
+    def __add__(self, other):
+        """Combines this network with another ReactionNetwork, or a single Reaction."""
+        if isinstance(other, ReactionNetwork):
+            return ReactionNetwork(
+                id = f"{self.id}+{other.id}",
+                name = f"{self.name} + {other.name}",
+                reactions = list(self.reactions) + list(other.reactions)
+            )
+        elif isinstance(other, Reaction):
+            return ReactionNetwork(
+                id = f"{self.id}+{other.id}",
+                name = f"{self.name} + {other.label}",
+                reactions = list(self.reactions) + [other]
+            )
+        else:
+            raise ValueError(f"ReactionNetwork cannot be combined with type [{type(other)}]")
+
+    @property
+    def steps(self):
+        """Supports legacy usage of Pathway.steps."""
+        return list(self.reactions)
+
+    @property
+    def metabolites(self):
+        """Supports legacy usage of Pathway.metabolites."""
+        return list(self.reactants)
+
+    @property
+    def enzymes(self):
+        """Supports legacy usage of Pathway.enzymes."""
+        return list(rxn.catalyst for rxn in self.reactions if rxn.catalyst is not None)
+
+Pathway = ReactionNetwork

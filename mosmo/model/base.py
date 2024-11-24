@@ -93,10 +93,12 @@ class KbEntry:
         description: Full description, suitable for a view focused on one entry at a time.
         aka: Alternative names of the entry.
         xrefs: Cross-references to (essentially) the same entry in other databases.
+
+    All attributes are optional on init, though id and db in particular are important for most functionality.
     """
-    id: str
+    id: Optional[str] = None
     db: Optional[Datasource] = None
-    name: str = ''
+    name: Optional[str] = None
     shorthand: Optional[str] = None
     description: Optional[str] = None
     aka: Optional[List[str]] = None
@@ -130,7 +132,7 @@ class KbEntry:
         return hash((type(self), self.id, self.db))
 
     def __repr__(self):
-        return f"[{self.id}]{' (' + self.shorthand + ')' if self.shorthand else ''} {self.name}"
+        return f"[{self.id}]{' (' + self.shorthand + ')' if self.shorthand else ''} {self.name or ''}"
 
     @property
     def label(self):
