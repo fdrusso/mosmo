@@ -78,6 +78,6 @@ class TestPathway:
     def test_SMatrix(self):
         """The s_matrix matches the stoichiometry of the input reactions."""
         network = Pathway([ABCD, BDE])
-        for i, m in enumerate(network.reactants):
+        for i, m in enumerate(network.molecules):
             for j, r in enumerate(network.reactions):
                 assert network.s_matrix[i, j] == r.stoichiometry.get(m, 0)

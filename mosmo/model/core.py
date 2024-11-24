@@ -1,7 +1,7 @@
 """Core classes defining objects and concepts used to construct models of molecular systems."""
 import collections
 from dataclasses import dataclass
-from typing import List, Mapping, Optional, Set, Tuple
+from typing import List, Mapping, Optional, Tuple
 
 from .base import KbEntry
 
@@ -95,14 +95,14 @@ class Reaction(KbEntry):
     @property
     def equation(self):
         """Human-readable compact summary of the reaction."""
-        def reactant_term(reactant: Molecule, count: float) -> str:
+        def molecule_term(molecule: Molecule, count: float) -> str:
             if count == 1:
-                return reactant.label
+                return molecule.label
             else:
-                return f'{count} {reactant.label}'
+                return f'{count} {molecule.label}'
 
-        lhs = [reactant_term(reactant, -count) for reactant, count in self.stoichiometry.items() if count < 0]
-        rhs = [reactant_term(reactant, count) for reactant, count in self.stoichiometry.items() if count > 0]
+        lhs = [molecule_term(molecule, -count) for molecule, count in self.stoichiometry.items() if count < 0]
+        rhs = [molecule_term(molecule, count) for molecule, count in self.stoichiometry.items() if count > 0]
         arrow = ' <=> ' if self.reversible else ' => '
 
         return ' + '.join(lhs) + arrow + ' + '.join(rhs)
@@ -137,7 +137,7 @@ class Reaction(KbEntry):
         return Reaction(
             id = self.id + "+" + other.id,
             db = None,
-            stoichiometry = {reactant: count for reactant, count in stoichiometry.items() if count != 0},
+            stoichiometry = {molecule: count for molecule, count in stoichiometry.items() if count != 0},
         )
 
     __radd__ = __add__
@@ -153,7 +153,7 @@ class Reaction(KbEntry):
         return Reaction(
             id = str(other) + "*" + self.id,
             db = None,
-            stoichiometry = {reactant: other * count for reactant, count in self.stoichiometry.items()},
+            stoichiometry = {molecule: other * count for molecule, count in self.stoichiometry.items()},
         )
 
     __rmul__ = __mul__

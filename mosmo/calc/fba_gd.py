@@ -57,7 +57,7 @@ class SteadyStateObjective(Objective):
     def __init__(self, network: Pathway, intermediates: Iterable[Molecule], weight: float = 1.0):
         super().__init__(weight)
         self.network = network
-        self.indices = np.array([network.reactants.index_of(m) for m in intermediates], dtype=np.int32)
+        self.indices = np.array([network.molecules.index_of(m) for m in intermediates], dtype=np.int32)
 
     def residual(self, velocities: ArrayT, dmdt: ArrayT, params=None) -> jnp.ndarray:
         """Ignores velocities; returns dM/dt values for all configured intermediates."""
@@ -79,9 +79,9 @@ class IrreversibilityObjective(Objective):
 
 
 class ProductionObjective(Objective):
-    """Penalizes deviation of dM/dt from a target value or range, for select reactants.
+    """Penalizes deviation of dM/dt from a target value or range, for select molecules.
 
-    The target value(s) for any reactant can be changed via update_params, although the set of reactants being
+    The target value(s) for any molecule can be changed via update_params, although the set of molecules being
     targeted cannot. Targets are specified as either:
     - {target: value} for a specific target value
     - {target: (lb, ub)} for a range of equally acceptable values
@@ -95,14 +95,14 @@ class ProductionObjective(Objective):
                  weight: float = 1.0):
         super().__init__(weight)
         self.network = network
-        self.indices = np.array([network.reactants.index_of(met) for met in targets], dtype=np.int32)
+        self.indices = np.array([network.molecules.index_of(met) for met in targets], dtype=np.int32)
         self.bounds = np.full((self.indices.shape[0], 2), [-np.inf, np.inf]).T
         self.update_params(targets)
 
     def update_params(self, targets: Mapping[Molecule, Union[float, Tuple[Optional[float], Optional[float]]]]):
         """Updates some or all target dM/dt values."""
         for i, met_idx in enumerate(self.indices):
-            met = self.network.reactants[met_idx]
+            met = self.network.molecules[met_idx]
             if met in targets:
                 target = targets[met]
                 if isinstance(target, float) or isinstance(target, int):
@@ -115,7 +115,7 @@ class ProductionObjective(Objective):
         return self.bounds
 
     def residual(self, velocities: ArrayT, dmdt: ArrayT, bounds: ArrayT) -> jnp.ndarray:
-        """Calculates shortfall (as a negative) or excess dM/dt for select reactants vs target values or bounds."""
+        """Calculates shortfall (as a negative) or excess dM/dt for select molecules vs target values or bounds."""
         shortfall = jnp.minimum(0, dmdt[self.indices] - bounds[0])
         excess = jnp.maximum(0, dmdt[self.indices] - bounds[1])
         return shortfall + excess
@@ -224,7 +224,7 @@ class FbaGd:
 
         Args:
             network: the reaction network
-            intermediates: metabolites (reactants) that are internal to the network, and should be at steady-state
+            intermediates: metabolites (molecules) that are internal to the network, and should be at steady-state
                 in any solution
             objectives: named components of the overall objective function to be optimized
             w_fitness: the relative weight of solution fitness terms (steady-state and irreversibility)

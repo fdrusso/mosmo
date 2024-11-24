@@ -1,16 +1,16 @@
 """General representation of a network of stoichiometric reactions.
 
-An idealized representation of a network of reactions, in which every reaction is all-or-nothing,
+An idealized representation of a pathway as a network of reactions, in which every reaction is all-or-nothing,
 with strictly defined stoichiometry. The evolution of this network over time is determined by a
-stoichiometry matrix, with reactants as the rows and reactions as the columns.
+stoichiometry matrix, with molecules as the rows and reactions as the columns.
 
 Some characteristics of typical reaction networks:
 - In almost all cases we can assume the stoichiometry matrix to be sparse.
 - For real biochemical systems, the total number of nonzero values is closer to linear with respect
   to the number of rows or columns than to the product of the two.
-- Real reactions never involve more than a few reactants, so columns will likely never have more than
+- Real reactions never involve more than a few molecules, so columns will likely never have more than
   a few nonzero values.
-- The converse is not true: reactants such as ATP or water may each participate in many reactions, so
+- The converse is not true: molecules such as ATP or water may each participate in many reactions, so
   the corresponding rows may have many nonzero values.
 """
 from typing import Any, Iterable, Iterator, Mapping, Optional, Sequence, Tuple, TypeVar, Union
@@ -89,7 +89,7 @@ class Pathway(KbEntry):
 
     This class serves the following functions:
     - Constructs a representation of the network as a (sparse) matrix of stoichiometry coefficients
-      for each reactant (row) in each reaction (column).
+      for each molecule (row) in each reaction (column).
     - Provides a mapping between the strictly numerically indexed rows and columns of this S matrix
       and the semantic Molecules and Reactions they correspond to.
     - Connects the mathematical behavior of the reaction network to a graphical representation of the pathway, as
@@ -113,9 +113,9 @@ class Pathway(KbEntry):
         # Defer construction of the stoichiometry matrix until it is needed.
         self._s_matrix = None
 
-        # Prepare indices for reactions and reactants.
+        # Prepare indices for reactions and molecules.
         self.reactions: Index[Reaction] = Index()
-        self.reactants: Index[Molecule] = Index()
+        self.molecules: Index[Molecule] = Index()
         if reactions is not None:
             for reaction in reactions:
                 self.add_reaction(reaction)
@@ -127,7 +127,7 @@ class Pathway(KbEntry):
             reaction: the reaction to add.
         """
         self.reactions.add(reaction)
-        self.reactants.update(reaction.stoichiometry.keys())
+        self.molecules.update(reaction.stoichiometry.keys())
 
         # Force reconstruction of the stoichiometry matrix.
         self._s_matrix = None
@@ -138,20 +138,20 @@ class Pathway(KbEntry):
         if self._s_matrix is None:
             s_matrix = np.zeros(self.shape)
             for reaction in self.reactions:
-                for reactant, coeff in reaction.stoichiometry.items():
-                    # (reactant, reaction) is guaranteed unique
-                    s_matrix[self.reactants.index_of(reactant), self.reactions.index_of(reaction)] = coeff
+                for molecule, coeff in reaction.stoichiometry.items():
+                    # (molecule, reaction) is guaranteed unique
+                    s_matrix[self.molecules.index_of(molecule), self.reactions.index_of(reaction)] = coeff
             self._s_matrix = s_matrix
         return self._s_matrix
 
     @property
     def shape(self) -> Tuple[int, int]:
         """The 2D shape of this network, (#molecules, #reactions)."""
-        return len(self.reactants), len(self.reactions)
+        return len(self.molecules), len(self.reactions)
 
     def _data_items(self):
         return super()._data_items() | {
-            'size': f'{len(self.reactions)} reactions over {len(self.reactants)} molecules.',
+            'size': f'{len(self.reactions)} reactions over {len(self.molecules)} molecules.',
             'reactions': list(self.reactions),
         }
 
@@ -165,15 +165,15 @@ class Pathway(KbEntry):
         """Combines this network with another Pathway, or a single Reaction."""
         if isinstance(other, Pathway):
             return Pathway(
-                id = f"{self.id}+{other.id}",
-                name = f"{self.name} + {other.name}",
-                reactions = list(self.reactions) + list(other.reactions)
+                id=f"{self.id}+{other.id}",
+                name=f"{self.name} + {other.name}",
+                reactions=list(self.reactions) + list(other.reactions)
             )
         elif isinstance(other, Reaction):
             return Pathway(
-                id = f"{self.id}+{other.id}",
-                name = f"{self.name} + {other.label}",
-                reactions = list(self.reactions) + [other]
+                id=f"{self.id}+{other.id}",
+                name=f"{self.name} + {other.label}",
+                reactions=list(self.reactions) + [other]
             )
         else:
             raise ValueError(f"Pathway cannot be combined with type [{type(other)}]")
@@ -186,12 +186,17 @@ class Pathway(KbEntry):
     @property
     def metabolites(self):
         """Supports legacy usage of Pathway.metabolites."""
-        return list(self.reactants)
+        return list(self.molecules)
 
     @property
     def enzymes(self):
         """Supports legacy usage of Pathway.enzymes."""
         return list(rxn.catalyst for rxn in self.reactions if rxn.catalyst is not None)
+
+    @property
+    def reactants(self):
+        """Supports legacy usage of ReactionNetwork.reactants."""
+        return self.molecules
 
 
 # Support legacy usage of the ReactionNetwork class
