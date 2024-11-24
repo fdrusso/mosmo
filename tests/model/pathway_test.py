@@ -1,11 +1,9 @@
-"""Tests for mosmo.model.reaction_network."""
+"""Tests for mosmo.model.pathway."""
 from dataclasses import dataclass
 
 import numpy as np
 
-from mosmo.model.base import KbEntry
-from mosmo.model.core import Molecule, Reaction
-from mosmo.model.reaction_network import Index, ReactionNetwork
+from mosmo.model import KbEntry, Molecule, Reaction, Pathway, Index
 
 
 @dataclass
@@ -70,16 +68,16 @@ ABCD = Reaction("abcd", stoichiometry={Molecule("a"): -1, Molecule("b"): -2, Mol
 BDE = Reaction("bde", stoichiometry={Molecule("b"): -1, Molecule("d"): -1, Molecule("e"): 2})
 
 
-class TestReactionNetwork:
+class TestPathway:
     def test_Shape(self):
-        """A network has the expected shape."""
-        network = ReactionNetwork([ABCD, BDE])
+        """A pathway's reaction network has the expected shape."""
+        network = Pathway([ABCD, BDE])
         unique_reactants = set(m for r in [ABCD, BDE] for m in r.stoichiometry)
         assert network.shape == (len(unique_reactants), 2)
 
     def test_SMatrix(self):
         """The s_matrix matches the stoichiometry of the input reactions."""
-        network = ReactionNetwork([ABCD, BDE])
+        network = Pathway([ABCD, BDE])
         for i, m in enumerate(network.reactants):
             for j, r in enumerate(network.reactions):
                 assert network.s_matrix[i, j] == r.stoichiometry.get(m, 0)

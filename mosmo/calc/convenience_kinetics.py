@@ -25,7 +25,7 @@ from typing import Dict, Iterable, Mapping, Optional, Set, Union
 import jax.numpy as jnp
 import numpy as np
 
-from mosmo.model import Molecule, Reaction, ReactionNetwork
+from mosmo.model import Molecule, Reaction, Pathway
 
 ArrayT = Union[np.ndarray, jnp.ndarray]
 ParamT = Union[float, ArrayT]
@@ -33,7 +33,7 @@ R = 8.314463e-3  # or more precisely, exactly 8.31446261815324e-3 kilojoule per 
 
 
 class Ligands:
-    """Maps a collection of molecules per reaction within a ReactionNetwork onto a constant-width array.
+    """Maps a collection of molecules per reaction within a Pathway onto a constant-width array.
 
     Conceptually, represents molecules in the same role (e.g. substrates or inhibitors) across all reactions in a given
     network. Functionally, maps positions in an array layout to specific (reaction, molecule) pairs, to facilitate
@@ -43,7 +43,7 @@ class Ligands:
     """
 
     def __init__(self,
-                 network: ReactionNetwork,
+                 network: Pathway,
                  reaction_ligands: Mapping[Reaction, Iterable[Molecule]]):
         """Initialize the Ligands set for multiple reactions.
 
@@ -255,7 +255,7 @@ class ConvenienceKinetics:
     """JAX-friendly implementation of Convenience Kinetics."""
 
     def __init__(self,
-                 network: ReactionNetwork,
+                 network: Pathway,
                  reaction_kinetics: Mapping[Reaction, ReactionKinetics],
                  ignore: Optional[Iterable[Molecule]] = None):
         """Constructs a ConvenienceKinetics object.

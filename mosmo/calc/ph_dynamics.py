@@ -51,13 +51,13 @@ class ProtonationSequence:
 class PhBuffer:
     """Models the dynamics of an aqueous buffer with components holding one or more protonation sites.
 
-    Conceptually this is a type of ReactionNetwork, with a strictly defined structure where each 'reaction' is the
+    Conceptually this is a type of reaction network, with a strictly defined structure where each 'reaction' is the
     reversible dissociation of a proton at a single site. Conventionally each site is described by a single constant,
     pKa, the simplest interpretation of which is the pH where the site is half-protonated. Internally, this class goes
     one step further to describe each reaction using forward (dissociation) and reverse (association) kinetic rate
     constants.
 
-    Since this models specifically aqueous buffers, the dissociation of water is always part of the system.
+    Since this models aqueous buffers specifically, the dissociation of water is always part of the system.
 
     Attrs:
         species: all distinct species in the system, in various protonation states. The order is maintained for state

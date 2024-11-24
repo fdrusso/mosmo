@@ -81,21 +81,26 @@ class Index(Sequence[KE]):
         return [item.label for item in self._items]
 
 
-class ReactionNetwork(KbEntry):
+class Pathway(KbEntry):
     """General representation of a network of stoichiometric reactions.
 
-    This class serves two main functions:
+    Broadens the basic biological meaning of 'pathway' to include any reaction network large or small, with or
+    without a graphical representation.
+
+    This class serves the following functions:
     - Constructs a representation of the network as a (sparse) matrix of stoichiometry coefficients
       for each reactant (row) in each reaction (column).
     - Provides a mapping between the strictly numerically indexed rows and columns of this S matrix
       and the semantic Molecules and Reactions they correspond to.
+    - Connects the mathematical behavior of the reaction network to a graphical representation of the pathway, as
+      understood by biochemists or molecular biologists.
     """
 
     def __init__(self, reactions: Optional[Iterable[Reaction]] = None, **kwargs):
-        """Initialize this reaction network.
+        """Initialize this pathway, based on a set of reactions.
 
         Args:
-            reactions: a list of Reactions included in this network.
+            reactions: a collection of Reactions included in this network. Any repeated reactions will be included once.
         """
         # Handle legacy attribute names from Pathway
         steps = kwargs.pop('steps', None)
@@ -116,10 +121,10 @@ class ReactionNetwork(KbEntry):
                 self.add_reaction(reaction)
 
     def add_reaction(self, reaction: Reaction):
-        """Adds a reaction to the network.
+        """Adds a reaction to the pathway.
 
         Args:
-            reaction: the reaction to add to the network.
+            reaction: the reaction to add.
         """
         self.reactions.add(reaction)
         self.reactants.update(reaction.stoichiometry.keys())
@@ -129,7 +134,7 @@ class ReactionNetwork(KbEntry):
 
     @property
     def s_matrix(self) -> np.ndarray:
-        """The 2D stoichiometry matrix describing this reaction network."""
+        """The 2D stoichiometry matrix describing this reaction network mathematically."""
         if self._s_matrix is None:
             s_matrix = np.zeros(self.shape)
             for reaction in self.reactions:
@@ -157,21 +162,21 @@ class ReactionNetwork(KbEntry):
         return hash((type(self), self.id))
 
     def __add__(self, other):
-        """Combines this network with another ReactionNetwork, or a single Reaction."""
-        if isinstance(other, ReactionNetwork):
-            return ReactionNetwork(
+        """Combines this network with another Pathway, or a single Reaction."""
+        if isinstance(other, Pathway):
+            return Pathway(
                 id = f"{self.id}+{other.id}",
                 name = f"{self.name} + {other.name}",
                 reactions = list(self.reactions) + list(other.reactions)
             )
         elif isinstance(other, Reaction):
-            return ReactionNetwork(
+            return Pathway(
                 id = f"{self.id}+{other.id}",
                 name = f"{self.name} + {other.label}",
                 reactions = list(self.reactions) + [other]
             )
         else:
-            raise ValueError(f"ReactionNetwork cannot be combined with type [{type(other)}]")
+            raise ValueError(f"Pathway cannot be combined with type [{type(other)}]")
 
     @property
     def steps(self):
@@ -188,4 +193,6 @@ class ReactionNetwork(KbEntry):
         """Supports legacy usage of Pathway.enzymes."""
         return list(rxn.catalyst for rxn in self.reactions if rxn.catalyst is not None)
 
-Pathway = ReactionNetwork
+
+# Support legacy usage of the ReactionNetwork class
+ReactionNetwork = Pathway

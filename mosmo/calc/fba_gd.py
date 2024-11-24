@@ -9,7 +9,7 @@ import jax.numpy as jnp
 import numpy as np
 import scipy.optimize
 
-from mosmo.model import Molecule, Reaction, ReactionNetwork
+from mosmo.model import Molecule, Reaction, Pathway
 
 ArrayT = Union[np.ndarray, jnp.ndarray]
 
@@ -54,7 +54,7 @@ class Objective(abc.ABC):
 class SteadyStateObjective(Objective):
     """Penalizes any non-zero dM/dt values for specified intermediates in the reaction network."""
 
-    def __init__(self, network: ReactionNetwork, intermediates: Iterable[Molecule], weight: float = 1.0):
+    def __init__(self, network: Pathway, intermediates: Iterable[Molecule], weight: float = 1.0):
         super().__init__(weight)
         self.network = network
         self.indices = np.array([network.reactants.index_of(m) for m in intermediates], dtype=np.int32)
@@ -67,7 +67,7 @@ class SteadyStateObjective(Objective):
 class IrreversibilityObjective(Objective):
     """Penalizes negative velocity values for irreversible reactions in the network."""
 
-    def __init__(self, network: ReactionNetwork, weight: float = 1.0):
+    def __init__(self, network: Pathway, weight: float = 1.0):
         super().__init__(weight)
         self.network = network
         self.indices = np.array([i for i, reaction in enumerate(network.reactions) if not reaction.reversible],
@@ -90,7 +90,7 @@ class ProductionObjective(Objective):
     """
 
     def __init__(self,
-                 network: ReactionNetwork,
+                 network: Pathway,
                  targets: Mapping[Molecule, Union[float, Tuple[Optional[float], Optional[float]]]],
                  weight: float = 1.0):
         super().__init__(weight)
@@ -133,7 +133,7 @@ class VelocityObjective(Objective):
     """
 
     def __init__(self,
-                 network: ReactionNetwork,
+                 network: Pathway,
                  targets: Mapping[Reaction, Union[float, Tuple[Optional[float], Optional[float]]]],
                  weight: float = 1.0):
         super().__init__(weight)
@@ -168,7 +168,7 @@ class ExclusionObjective(Objective):
     """Incentivizes mutually exclusive fluxes within a set of reactions, e.g. to avoid futile cycles."""
 
     def __init__(self,
-                 network: ReactionNetwork,
+                 network: Pathway,
                  reactions: Iterable[Reaction],
                  weight: float = 1.0):
         super().__init__(weight)
@@ -192,7 +192,7 @@ class FbaGd:
     """Defines and solves a Flux Balance Analysis problem via gradient descent.
 
     The problem is specified via a set of Objective components, each constraining some aspect of the solution. All
-    FBA problems include balancing reaction velocities such that network intermediates are at steady state, i.e.
+    FBA problems include balancing reaction velocities such that pathway intermediates are at steady state, i.e.
     have a rate of change (dM/dt) of 0.  Any reactions defined as reversible=False should have non-negative velocity
     in the solution. Other objectives are provided by the caller, and may take any form that evaluates a potential
     solution in terms of velocities, dM/dt or both.
@@ -216,7 +216,7 @@ class FbaGd:
     """
 
     def __init__(self,
-                 network: ReactionNetwork,
+                 network: Pathway,
                  intermediates: Iterable[Molecule],
                  objectives: Mapping[str, Objective],
                  w_fitness: float = 1e2):
