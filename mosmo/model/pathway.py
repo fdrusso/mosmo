@@ -96,11 +96,14 @@ class Pathway(KbEntry):
       understood by biochemists or molecular biologists.
     """
 
-    def __init__(self, reactions: Optional[Iterable[Reaction]] = None, **kwargs):
+    def __init__(self, reactions: Optional[Iterable[Reaction]] = None, diagram=None, **kwargs):
         """Initialize this pathway, based on a set of reactions.
 
         Args:
-            reactions: a collection of Reactions included in this network. Any repeated reactions will be included once.
+            reactions: a collection of Reactions included in this network. Any repeated reactions will be
+                included once.
+            diagram: json-compatible structure defining a pathway diagram consistent with the contents of
+                this pathway.
         """
         # Handle legacy attribute names from Pathway
         steps = kwargs.pop('steps', None)
@@ -109,6 +112,8 @@ class Pathway(KbEntry):
         kwargs.pop('metabolites', None)
         kwargs.pop('enzymes', None)
         super().__init__(**kwargs)
+
+        self.diagram = diagram
 
         # Defer construction of the stoichiometry matrix until it is needed.
         self._s_matrix = None

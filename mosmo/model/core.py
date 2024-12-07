@@ -63,12 +63,17 @@ class Molecule(KbEntry):
     """
 
     def _data_items(self):
-        return super()._data_items() | {
+        items = super()._data_items() | {
             'formula': self.formula,
             'mass': self.mass,
             'charge': self.charge,
             'inchi': self.inchi,
         }
+        if self.canonical_form:
+            items['canonical_form'] = self.canonical_form.parent_id
+        if self.default_form:
+            items['default_form'] = self.default_form.child_id
+        return items
 
     def __eq__(self, other):
         return self.same_as(other)

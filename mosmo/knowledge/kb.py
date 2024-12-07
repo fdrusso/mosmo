@@ -297,6 +297,11 @@ def configure_kb(uri: str = 'mongodb://127.0.0.1:27017'):
         parent=codecs.CODECS[KbEntry],
         codec_map={
             'reactions': codecs.ListCodec(item_codec=XrefCodec(session, Reaction)),
+            'diagram': codecs.AS_IS,
+            'molecules': None,  # Inferred from reactions
+            's_matrix': None,  # Inferred from reactions and molecules
+
+            # Legacy Pathway support
             'metabolites': codecs.ListCodec(item_codec=XrefCodec(session, Molecule)),
             'steps': codecs.ListCodec(item_codec=XrefCodec(session, Reaction)),
             'enzymes': codecs.ListCodec(item_codec=XrefCodec(session, Molecule)),
