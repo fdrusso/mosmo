@@ -1,4 +1,4 @@
-"""Standard Datasource definitions."""
+"""Standard Datasource definitions for the domain of Molecular Systems Modelling."""
 from mosmo.model import Datasource, DS, KbEntry, Molecule, Reaction, Pathway
 
 

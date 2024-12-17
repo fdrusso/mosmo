@@ -92,10 +92,21 @@ class TableLookupCodec(Codec):
 
 
 class ObjectCodec(Codec):
-    """Encodes/decodes a python instance to a json-compatible dict."""
+    """Encodes/decodes a python instance to a json-compatible dict.
 
-    def __init__(self, clazz: Type, parent: Optional["ObjectCodec"] = None, codec_map: Mapping[str, Codec] = None,
+    Object attributes to be persisted must be specified explicitly; any attributes not in the codec_map are ignored.
+    """
+
+    def __init__(self, clazz: Type, codec_map: Mapping[str, Codec], parent: Optional["ObjectCodec"] = None,
                  rename: Mapping[str, str] = None):
+        """Initialize and ObjectCodec.
+
+        Args:
+            clazz: The type of object being encoded.
+            codec_map: specifies all object attributes included in an encoded document, with corresponding codecs.
+            parent: (optional) codec extended by this codec. Typically the codec for a superclass of `clazz`.
+            rename: (optional) maps object attributes to different keys in an encoded document.
+        """
         self.clazz = clazz
         if parent:
             self.codec_map = ChainMap(codec_map, parent.codec_map)
@@ -114,7 +125,7 @@ class ObjectCodec(Codec):
     def encode(self, obj):
         doc = {}
         for k, v in obj.__dict__.items():
-            codec = self.codec_map.get(k, AS_IS)
+            codec = self.codec_map.get(k)
             if codec is not None and v is not None:
                 k = self.encoded_name.get(k, k)
                 doc[k] = codec.encode(v)
@@ -129,14 +140,25 @@ class ObjectCodec(Codec):
         return self.clazz(**args)
 
 
-CODECS = {}
-CODECS[Datasource] = TableLookupCodec(DS)
-CODECS[DbXref] = ObjectCodec(DbXref, codec_map={"db": CODECS[Datasource]})
+# Pre-defined codecs for model.core types. This dict may be extended by other imported packages.
+CODECS = {
+    Datasource: TableLookupCodec(DS),
+}
+CODECS[DbXref] = ObjectCodec(
+    DbXref,
+    codec_map={
+        'db': CODECS[Datasource],
+        'id': AS_IS,
+    })
 CODECS[KbEntry] = ObjectCodec(
     KbEntry,
     codec_map={
         'db': CODECS[Datasource],
-        'xrefs': ListCodec(item_codec=CODECS[DbXref], list_type=set)
+        'id': AS_IS,
+        'name': AS_IS,
+        'shorthand': AS_IS,
+        'description': AS_IS,
+        'aka': AS_IS,
+        'xrefs': ListCodec(item_codec=CODECS[DbXref], list_type=set),
     },
-    rename={"id": "_id"}
-)
+    rename={"id": "_id"})

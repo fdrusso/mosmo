@@ -6,7 +6,7 @@ from pymongo import MongoClient, timeout
 from pymongo.errors import ConnectionFailure
 
 from mosmo.knowledge.codecs import CODECS
-from mosmo.knowledge.kb import Session, Dataset
+from mosmo.knowledge.session import Session, Dataset
 from mosmo.model import KbEntry, DbXref, DS
 
 TEST = Dataset("TEST", DS.get("TEST"), KbEntry, "test", "test", codec=CODECS[KbEntry])

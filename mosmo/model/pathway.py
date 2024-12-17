@@ -105,14 +105,7 @@ class Pathway(KbEntry):
             diagram: json-compatible structure defining a pathway diagram consistent with the contents of
                 this pathway.
         """
-        # Handle legacy attribute names from Pathway
-        steps = kwargs.pop('steps', None)
-        if reactions is None:
-            reactions = steps
-        kwargs.pop('metabolites', None)
-        kwargs.pop('enzymes', None)
         super().__init__(**kwargs)
-
         self.diagram = diagram
 
         # Defer construction of the stoichiometry matrix until it is needed.
