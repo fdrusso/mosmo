@@ -18,10 +18,10 @@ def configure_kb(uri: str = 'mongodb://127.0.0.1:27017'):
     session = Session(MongoClient(uri))
 
     # Define codecs for model.core types.
-    codecs = dict(CODECS)
-    codecs[Variation] = ObjectCodec(Variation, codec_map={'name': AS_IS, 'form_names': AS_IS})
+    codex = dict(CODECS)
+    codex[Variation] = ObjectCodec(Variation, codec_map={'name': AS_IS, 'form_names': AS_IS})
 
-    codecs[Specialization] = ObjectCodec(
+    codex[Specialization] = ObjectCodec(
         Specialization,
         codec_map={
             'parent_id': AS_IS,
@@ -29,47 +29,47 @@ def configure_kb(uri: str = 'mongodb://127.0.0.1:27017'):
             'child_id': AS_IS,
         })
 
-    codecs[Molecule] = ObjectCodec(
+    codex[Molecule] = ObjectCodec(
         Molecule,
-        parent=codecs[KbEntry],
+        parent=codex[KbEntry],
         codec_map={
             'formula': AS_IS,
             'mass': AS_IS,
             'charge': AS_IS,
             'inchi': AS_IS,
-            'variations': ListCodec(item_codec=CODECS[Variation]),
-            'canonical_form': CODECS[Specialization],
-            'default_form': CODECS[Specialization],
+            'variations': ListCodec(item_codec=codex[Variation]),
+            'canonical_form': codex[Specialization],
+            'default_form': codex[Specialization],
         })
 
-    codecs[Reaction] = ObjectCodec(
+    codex[Reaction] = ObjectCodec(
         Reaction,
-        parent=codecs[KbEntry],
+        parent=codex[KbEntry],
         codec_map={
             'stoichiometry': MappingCodec(key_codec=XrefCodec(session, Molecule)),
             'catalyst': XrefCodec(session, Molecule),
             'reversible': AS_IS,
         })
 
-    codecs[Pathway] = ObjectCodec(
+    codex[Pathway] = ObjectCodec(
         Pathway,
-        parent=codecs[KbEntry],
+        parent=codex[KbEntry],
         codec_map={
             'reactions': ListCodec(item_codec=XrefCodec(session, Reaction)),
             'diagram': AS_IS,
         })
 
     # Reference datasets (local copies of external sources)
-    session.define_dataset(Dataset('EC', DS.EC, KbEntry, 'ref', 'EC', codecs[KbEntry]))
-    session.define_dataset(Dataset('GO', DS.GO, KbEntry, 'ref', 'GO', codecs[KbEntry]))
-    session.define_dataset(Dataset('CHEBI', DS.CHEBI, Molecule, 'ref', 'CHEBI', codecs[Molecule]))
-    session.define_dataset(Dataset('RHEA', DS.RHEA, Reaction, 'ref', 'RHEA', codecs[Reaction]))
+    session.define_dataset(Dataset('EC', DS.EC, KbEntry, 'ref', 'EC', codex[KbEntry]))
+    session.define_dataset(Dataset('GO', DS.GO, KbEntry, 'ref', 'GO', codex[KbEntry]))
+    session.define_dataset(Dataset('CHEBI', DS.CHEBI, Molecule, 'ref', 'CHEBI', codex[Molecule]))
+    session.define_dataset(Dataset('RHEA', DS.RHEA, Reaction, 'ref', 'RHEA', codex[Reaction]))
 
     # The KB proper - compiled, reconciled, integrated, canonical
     session.define_dataset(
-        Dataset('compounds', DS.CANON, Molecule, 'kb', 'compounds', codecs[Molecule], canonical=True))
+        Dataset('compounds', DS.CANON, Molecule, 'kb', 'compounds', codex[Molecule], canonical=True))
     session.define_dataset(
-        Dataset('reactions', DS.CANON, Reaction, 'kb', 'reactions', codecs[Reaction], canonical=True))
+        Dataset('reactions', DS.CANON, Reaction, 'kb', 'reactions', codex[Reaction], canonical=True))
     session.define_dataset(
-        Dataset('pathways', DS.CANON, Pathway, 'kb', 'pathways', codecs[Pathway], canonical=True))
+        Dataset('pathways', DS.CANON, Pathway, 'kb', 'pathways', codex[Pathway], canonical=True))
     return session

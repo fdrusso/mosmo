@@ -195,20 +195,23 @@ class Session:
                 warnings.warn(f'Multiple xrefs to {q} found in {dataset.name}')
         return xrefs[0] if xrefs else None
 
-    def deref(self, q, clazz: Optional[Type] = None) -> Optional[KbEntry]:
+    def deref(self, q: Union[DbXref, KbEntry, str], clazz: Optional[Type] = None) -> Optional[KbEntry]:
         """Retrieves the entry referred to by a DbXref or its string representation."""
         xref = _as_xref(q)
-        if xref.db not in self.by_source:
+        if not xref or xref.db not in self.by_source:
             return None
 
-        if len(self.by_source[xref.db]) == 1:
-            dataset = next(iter(self.by_source[xref.db].values()))
-        elif clazz in self.by_source[xref.db]:
-            dataset = self.by_source[xref.db].get(clazz)
+        sources = self.by_source[xref.db]
+        if clazz is not None and clazz in sources:
+            return self.get(sources[clazz], xref.id)
         else:
-            dataset = None
+            for source in sources.values():
+                entry = self.get(source, xref.id)
+                if entry:
+                    return entry
 
-        return self.get(dataset, xref.id)
+        # Not found
+        return None
 
     def __call__(self, q) -> Optional[KbEntry]:
         """Convenience interface to the KB.
