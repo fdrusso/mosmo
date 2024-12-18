@@ -27,11 +27,12 @@ class Thermodynamics:
             xrefs = {xref.db: xref for xref in molecule.xrefs or []}
             found = None
             for ds, prefix in [
-                (DS.CHEBI, "chebi:CHEBI:"),
                 (DS.KEGG, "kegg:"),
                 (DS.METACYC, "metacyc.compound:"),
                 (DS.METANETX, "metanetx.chemical:"),
 
+                # eQ appears to get confused by CHEBI. Stick to the general forms above.
+                # (DS.CHEBI, "chebi:CHEBI:"),
                 # Issue with BIGG ids - eQ does not recognize the _c or _e suffix
                 # (DS.BIGG, "bigg.metabolite:"),
             ]:
