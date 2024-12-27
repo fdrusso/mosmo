@@ -1,10 +1,10 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling>=1.27.0"]
 build-backend = "hatchling.build"
 
 [project]
 name = "mosmo"
-version = "0.1.0"
+version = "0.2.0"
 authors = [
   { name="Frank D Russo", email="fdrusso.42@gmail.com" },
 ]
