@@ -6,6 +6,7 @@ backed by storage, a Dataset corresponds to a pymongo Collection. Translation to
 format is managed by a Codec.
 """
 import collections
+from contextlib import contextmanager
 import copy
 import warnings
 from dataclasses import dataclass
@@ -62,18 +63,20 @@ class Session:
         self.by_source: Dict[Datasource, Dict[Type, Dataset]] = collections.defaultdict(dict)
         self.canon: Dict[Type, Dataset] = {}
         self._cache: Dict[Dataset, Dict[Any, KbEntry]] = {}
+        self.writable: Dict[Dataset, bool] = {}
 
         if schema:
             for dataset in schema:
                 self.define_dataset(dataset)
 
     def define_dataset(self, dataset: Dataset):
-        """Adds a dataset to the schema of this session."""
+        """Adds a dataset to the schema of this session. Datasets start out locked for writing."""
         if dataset.name in self.schema or dataset.name in self.__dict__:
             raise ValueError(f'Name collision: {dataset.name} is an existing attribute of Session')
 
         self.schema[dataset.name] = dataset
         self.by_source[dataset.datasource][dataset.content_type] = dataset
+        self.writable[dataset] = False
 
         if dataset.canonical:
             if dataset.content_type in self.canon:
@@ -85,6 +88,36 @@ class Session:
 
         # The cache is not just to save round-trips to the datastore, but to maximize reuse of decoded instances.
         self._cache[dataset] = {}
+
+    def find_dataset(self, db: Datasource, clazz: Optional[Type] = None):
+        """Finds the physical dataset associated with a logical datasource (and type), if any."""
+        sources = self.by_source.get(db, {})
+        if len(sources) == 1:
+            return next(iter(sources.values()))
+        else:
+            return  sources.get(clazz)
+
+    @contextmanager
+    def unlock(self, *datasets):
+        """Unlocks select datasets, or all datasets, to allow writing (putting) entries.
+
+        The dataset lock/unlock mechanism is intended not for bulletproof security, but to avoid unintended changes
+        to the knowledge base.
+
+        Usage:
+            with session.unlock(ds):
+                session.put(ds, entry)
+                session.remove(entry)
+        """
+        if not datasets:
+            datasets = self.schema.values()
+        try:
+            for dataset in datasets:
+                self.writable[dataset] = True
+            yield datasets
+        finally:
+            for dataset in datasets:
+                self.writable[dataset] = False
 
     def clear_cache(self, *datasets):
         """Clears cached entries for select datasets, or all datasets."""
@@ -113,6 +146,15 @@ class Session:
                 self._cache_value(dataset, doc)
         return self._cache[dataset].get(id)
 
+    def deref(self, q: Union[DbXref, KbEntry, str], clazz: Optional[Type] = None) -> Optional[KbEntry]:
+        """Retrieves the entry referred to by a DbXref or its string representation."""
+        xref = _as_xref(q)
+        dataset = self.find_dataset(xref.db, clazz)
+        if dataset:
+            return self.get(dataset, xref.id)
+        else:
+            return None
+
     def put(self, dataset: Dataset, entry: KbEntry, bypass_cache: bool = False):
         """Persists an entry to the KB, in the given dataset.
 
@@ -128,7 +170,13 @@ class Session:
              entry: the entry to be persisted.
              bypass_cache: if True, the entry is persisted straight to the underlying databases, bypassing the session
                 cache. May save session memory if a large number of entries are persisted.
+
+        Raises:
+            ValueError on an attempt to write to a locked dataset.
         """
+        if not self.writable[dataset]:
+            raise ValueError(f'Dataset [{dataset.name}] is locked.')
+
         if entry.db is None:
             entry.db = dataset.datasource
         elif entry.db != dataset.datasource:
@@ -144,6 +192,27 @@ class Session:
         if self.client is not None:
             doc = dataset.codec.encode(entry)
             self.client[dataset.client_db][dataset.collection].replace_one({'_id': entry.id}, doc, upsert=True)
+
+    def remove(self, entry: KbEntry):
+        """Removes an entry from underlying storage.
+
+        The entry's `db` attribute is used to identify where the entry is to be removed, both from the local cache
+        and underlying storage. The entry instance itself is unchanged.
+
+        Args:
+             entry: the entry to be removed.
+
+        Raises:
+            ValueError on an attempt to write to a locked dataset.
+        """
+        dataset = self.find_dataset(entry.db)
+        if dataset:
+            if not self.writable[dataset]:
+                raise ValueError(f'Dataset [{dataset.name}] is locked.')
+
+            if self.client is not None:
+                self.client[dataset.client_db][dataset.collection].delete_one({'_id': entry.id})
+            self._cache[dataset].pop(entry.id)
 
     def find(self, dataset: Dataset, name: str, include_aka=True) -> List[KbEntry]:
         """Finds any number of KB entries matching the given name, optionally as an AKA."""
@@ -194,24 +263,6 @@ class Session:
             elif len(xrefs) > 1:
                 warnings.warn(f'Multiple xrefs to {q} found in {dataset.name}')
         return xrefs[0] if xrefs else None
-
-    def deref(self, q: Union[DbXref, KbEntry, str], clazz: Optional[Type] = None) -> Optional[KbEntry]:
-        """Retrieves the entry referred to by a DbXref or its string representation."""
-        xref = _as_xref(q)
-        if not xref or xref.db not in self.by_source:
-            return None
-
-        sources = self.by_source[xref.db]
-        if clazz is not None and clazz in sources:
-            return self.get(sources[clazz], xref.id)
-        else:
-            for source in sources.values():
-                entry = self.get(source, xref.id)
-                if entry:
-                    return entry
-
-        # Not found
-        return None
 
     def __call__(self, q) -> Optional[KbEntry]:
         """Convenience interface to the KB.
