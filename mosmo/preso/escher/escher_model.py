@@ -6,18 +6,18 @@ from mosmo.model.core import Molecule, Reaction
 def escher_model(model_name: str, reactions: Iterable[Reaction]):
     def escher_reaction(reaction: Reaction) -> dict:
         return {
-          'id': reaction.label,
-          'name': reaction.name,
-          'metabolites': {reactant.label: count for reactant, count in reaction.stoichiometry.items()},
+          'id': reaction.id,
+          'name': reaction.label,
+          'metabolites': {reactant.id: count for reactant, count in reaction.stoichiometry.items()},
           'lower_bound': -1000.0 if reaction.reversible else 0.0,
           'upper_bound': 1000.0,
-          'gene_reaction_rule': reaction.catalyst.label if reaction.catalyst else "",
+          'gene_reaction_rule': reaction.catalyst.id if reaction.catalyst else '',
         }
 
     def escher_metabolite(reactant: Molecule) -> dict:
         return {
-          'id': reactant.label,
-          'name': reactant.name,
+          'id': reactant.id,
+          'name': reactant.label,
           'compartment': 'any',
           'charge': reactant.charge,
           'formula': reactant.formula,
@@ -25,8 +25,8 @@ def escher_model(model_name: str, reactions: Iterable[Reaction]):
 
     def escher_gene(catalyst: Molecule) -> dict:
         return {
-          'id': catalyst.label,
-          'name': catalyst.name or catalyst.label,
+          'id': catalyst.id,
+          'name': catalyst.label,
         }
 
     reactions_json = []

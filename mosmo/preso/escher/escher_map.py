@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Mapping, Optional, Tuple, Union
 
 # Default Escher styles
-CSS = """
+CSS = '''
 #canvas {
   fill: #ffffff;
   stroke: #cccccc;
@@ -52,7 +52,7 @@ text {
   fill: #eeeeee;  /* default overridden by metabolite_scale */
   stroke: none;
 }
-"""
+'''
 
 
 @dataclass
@@ -64,18 +64,18 @@ class Color:
 
     @staticmethod
     def from_hex(hexstr: str):
-        if hexstr.startswith("#") and len(hexstr) == 7:
+        if hexstr.startswith('#') and len(hexstr) == 7:
             return Color(int(hexstr[1:3], 16), int(hexstr[3:5], 16), int(hexstr[5:], 16))
         else:
             raise ValueError("Hex color string of style '#rrggbb' required")
 
     def __str__(self):
-        return f"#{int(self.r + 0.5):02x}{int(self.g + 0.5):02x}{int(self.b + 0.5):02x}"
+        return f'#{int(self.r + 0.5):02x}{int(self.g + 0.5):02x}{int(self.b + 0.5):02x}'
 
-    def __add__(self, color: "Color"):
+    def __add__(self, color: 'Color'):
         return Color(self.r + color.r, self.g + color.g, self.b + color.b)
 
-    def __sub__(self, color: "Color"):
+    def __sub__(self, color: 'Color'):
         return Color(self.r - color.r, self.g - color.g, self.b - color.b)
 
     def __mul__(self, factor):
@@ -147,33 +147,33 @@ class Scale:
 
 def GaBuGeRd(minval=0, mid1=0.01, mid2=20, maxval=100):
     """Scale modeled after the GaBuGeRd scale preset of the Escher API."""
-    return Scale({minval: ("#c8c8c8", 12), mid1: ("#9696ff", 16), mid2: ("#209123", 20), maxval: ("#ff0000", 25)},
+    return Scale({minval: ('#c8c8c8', 12), mid1: ('#9696ff', 16), mid2: ('#209123', 20), maxval: ('#ff0000', 25)},
                  use_abs=True)
 
 
 def GaBuRd(minval=0, midval=20, maxval=100):
     """Scale modeled after the GaBuRd scale preset of the Escher API."""
-    return Scale({minval: ("#c8c8c8", 12), midval: ("#9696ff", 20), maxval: ("#ff0000", 25)}, use_abs=True)
+    return Scale({minval: ('#c8c8c8', 12), midval: ('#9696ff', 20), maxval: ('#ff0000', 25)}, use_abs=True)
 
 
 def RdYlBu(minval=0, midval=20, maxval=100):
     """Scale modeled after the RdYlBu scale preset of the Escher API."""
-    return Scale({minval: ("#d7191c", 12), midval: ("#ffffbf", 20), maxval: ("#2c7bb6", 25)}, use_abs=True)
+    return Scale({minval: ('#d7191c', 12), midval: ('#ffffbf', 20), maxval: ('#2c7bb6', 25)}, use_abs=True)
 
 
 def GeGaRd(minval=-100, maxval=100):
     """Scale modeled after the GeGaRd scale preset of the Escher API."""
-    return Scale({minval: ("#209123", 25), 0: ("#c8c8c8", 12), maxval: ("#ff0000", 25)}, use_abs=False)
+    return Scale({minval: ('#209123', 25), 0: ('#c8c8c8', 12), maxval: ('#ff0000', 25)}, use_abs=False)
 
 
 def WhYlRd(minval=0, med=20, maxval=100):
     """Scale modeled after the WhYlRd scale preset of the Escher API."""
-    return Scale({minval: ("#fffaf0", 20), med: ("#f1c470", 30), maxval: ("#800000", 40)}, use_abs=True)
+    return Scale({minval: ('#fffaf0', 20), med: ('#f1c470', 30), maxval: ('#800000', 40)}, use_abs=True)
 
 
 def GaBu(minval=0, maxval=100):
     """A simple aesthetic light-gray to blue scale."""
-    return Scale({minval: ("#eeeeee", 5), maxval: ("#1f77b4", 20)}, use_abs=True)
+    return Scale({minval: ('#eeeeee', 5), maxval: ('#1f77b4', 20)}, use_abs=True)
 
 
 class EscherMap:
@@ -181,10 +181,10 @@ class EscherMap:
 
     Usage:
         diagram1 = EscherMap(json.loads(<mapfile>)))
-        IPython.display.SVG(diagram1.draw(width="20cm"))
+        IPython.display.SVG(diagram1.draw(width='20cm'))
 
         diagram2 = EscherMap(json.loads(<mapfile>)), reaction_scale=GaBuRd(midval=1.5, maxval=10))
-        IPython.display.SVG(diagram2.draw(width="800px", reaction_data=<data>))
+        IPython.display.SVG(diagram2.draw(width='800px', reaction_data=<data>))
 
     For greater control, use build(), which returns a standard SVG document as an ET.Element. Users with web development
     or CSS experience can manipulate this to fine-tune its appearance. This can be rendered to a string, or saved to a
@@ -202,14 +202,14 @@ class EscherMap:
         self.reaction_scale = reaction_scale
         self.metabolite_scale = metabolite_scale
 
-        self.origin = (map_json[1]["canvas"]["x"], map_json[1]["canvas"]["y"])
-        self.size = (map_json[1]["canvas"]["width"], map_json[1]["canvas"]["height"])
+        self.origin = (map_json[1]['canvas']['x'], map_json[1]['canvas']['y'])
+        self.size = (map_json[1]['canvas']['width'], map_json[1]['canvas']['height'])
 
         # All nodes may be referred to by some reaction segment. Only metabolite nodes will be rendered.
         all_nodes = {}
         self.metabolites = []
-        for node_id, node in map_json[1]["nodes"].items():
-            if node["node_type"] == "metabolite":
+        for node_id, node in map_json[1]['nodes'].items():
+            if node['node_type'] == 'metabolite':
                 metabolite = MapMetabolite(self, node)
                 all_nodes[node_id] = metabolite
                 self.metabolites.append(metabolite)
@@ -217,7 +217,7 @@ class EscherMap:
                 all_nodes[node_id] = MapNode(self, node)
 
         self.reactions = []
-        for reaction_id, reaction_json in map_json[1]["reactions"].items():
+        for reaction_id, reaction_json in map_json[1]['reactions'].items():
             self.reactions.append(MapReaction(self, reaction_json, all_nodes))
 
     def build(
@@ -234,31 +234,31 @@ class EscherMap:
         if metabolite_data is None:
             metabolite_data = {}
 
-        svg = ET.Element("svg",
-                         {"width": str(self.width),
-                          "height": str(self.height),
-                          "viewBox": f"{self.origin[0]:.1f} {self.origin[1]:.1f} {self.size[0]:.1f} {self.size[1]:.1f}"}
+        svg = ET.Element('svg',
+                         {'width': str(self.width),
+                          'height': str(self.height),
+                          'viewBox': f'{self.origin[0]:.1f} {self.origin[1]:.1f} {self.size[0]:.1f} {self.size[1]:.1f}'}
                          )
-        defs = ET.Element("defs")
-        defs.append(ET.Element("style", {"type": "text/css"}))
+        defs = ET.Element('defs')
+        defs.append(ET.Element('style', {'type': 'text/css'}))
         defs[-1].text = CSS
         svg.append(defs)
 
-        maproot = ET.Element("g", {"id": "eschermap"})
+        maproot = ET.Element('g', {'id': 'eschermap'})
         # Background canvas
         maproot.append(
-            ET.Element("rect",
-                       {"id": "canvas",
-                        "x": f"{self.origin[0]:.1f}",
-                        "y": f"{self.origin[1]:.1f}",
-                        "width": f"{self.size[0]:.1f}",
-                        "height": f"{self.size[1]:.1f}"}
+            ET.Element('rect',
+                       {'id': 'canvas',
+                        'x': f'{self.origin[0]:.1f}',
+                        'y': f'{self.origin[1]:.1f}',
+                        'width': f'{self.size[0]:.1f}',
+                        'height': f'{self.size[1]:.1f}'}
                        ))
 
         # Reactions with segments and labels, possibly styled according to data values
-        reactions = ET.Element("g", {"id": "reactions"})
+        reactions = ET.Element('g', {'id': 'reactions'})
         if reaction_data:
-            reactions.set("class", "data")
+            reactions.set('class', 'data')
 
         for reaction in self.reactions:
             value = reaction_data.get(reaction.reaction_id)
@@ -267,9 +267,9 @@ class EscherMap:
         maproot.append(reactions)
 
         # Metabolite nodes, possibly styled according to data values
-        metabolites = ET.Element("g", {"id": "metabolites"})
+        metabolites = ET.Element('g', {'id': 'metabolites'})
         if metabolite_data:
-            metabolites.set("class", "data")
+            metabolites.set('class', 'data')
 
         for metabolite in self.metabolites:
             value = metabolite_data.get(metabolite.metabolite_id)
@@ -288,7 +288,7 @@ class EscherMap:
             metabolite_data=metabolite_data,
             reaction_data=reaction_data,
             reaction_direction=reaction_direction)
-        return ET.tostring(svg, encoding="unicode")
+        return ET.tostring(svg, encoding='unicode')
 
 
 class MapNode:
@@ -296,7 +296,7 @@ class MapNode:
 
     def __init__(self, parent: EscherMap, node_json):
         self.parent = parent
-        self.center = (node_json["x"], node_json["y"])
+        self.center = (node_json['x'], node_json['y'])
 
 
 class MapMetabolite(MapNode):
@@ -304,9 +304,10 @@ class MapMetabolite(MapNode):
 
     def __init__(self, parent: EscherMap, node_json):
         super().__init__(parent, node_json)
-        self.metabolite_id = node_json["bigg_id"]
-        self.primary = node_json["node_is_primary"]
-        self.label_pos = (node_json["label_x"], node_json["label_y"])
+        self.metabolite_id = node_json['bigg_id']
+        self.label = node_json['name']
+        self.primary = node_json['node_is_primary']
+        self.label_pos = (node_json['label_x'], node_json['label_y'])
 
     def size(self) -> float:
         if self.primary:
@@ -315,17 +316,17 @@ class MapMetabolite(MapNode):
             return 12.
 
     def build(self, value=None) -> ET.Element:
-        circle = ET.Element("circle",
-                            {"cx": f"{self.center[0]:.1f}", "cy": f"{self.center[1]:.1f}", "r": f"{self.size():.1f}"})
+        circle = ET.Element('circle',
+                            {'cx': f'{self.center[0]:.1f}', 'cy': f'{self.center[1]:.1f}', 'r': f'{self.size():.1f}'})
         if value is not None and self.parent.metabolite_scale is not None:
             color, size = self.parent.metabolite_scale.style(value)
-            circle.set("r", f"{size:.1f}")
-            circle.set("style", f"fill: {str(color)};")
+            circle.set('r', f'{size:.1f}')
+            circle.set('style', f'fill: {str(color)};')
 
-        label = ET.Element("text", {"x": f"{self.label_pos[0]:.1f}", "y": f"{self.label_pos[1]:.1f}"})
-        label.text = self.metabolite_id
+        label = ET.Element('text', {'x': f'{self.label_pos[0]:.1f}', 'y': f'{self.label_pos[1]:.1f}'})
+        label.text = self.label
 
-        group = ET.Element("g", {"name": self.metabolite_id})
+        group = ET.Element('g', {'name': self.metabolite_id})
         group.append(circle)
         group.append(label)
         return group
@@ -336,27 +337,26 @@ class MapReaction:
 
     def __init__(self, parent: EscherMap, reaction_json, all_nodes: Mapping[str, MapNode]):
         self.parent = parent
-        self.reaction_id = reaction_json["bigg_id"]
-        self.stoich = {m["bigg_id"]: m["coefficient"] for m in reaction_json["metabolites"]}
-        self.reversible = reaction_json["reversibility"]
-        self.label_pos = (reaction_json["label_x"], reaction_json["label_y"])
+        self.reaction_id = reaction_json['bigg_id']
+        self.label = reaction_json['name']
+        self.stoich = {m['bigg_id']: m['coefficient'] for m in reaction_json['metabolites']}
+        self.reversible = reaction_json['reversibility']
+        self.label_pos = (reaction_json['label_x'], reaction_json['label_y'])
 
         self.segments = [MapSegment(self, segment_json, all_nodes) for segment_json in
-                         reaction_json["segments"].values()]
+                         reaction_json['segments'].values()]
 
     def build(self, value=None, direction=None) -> ET.Element:
-        group = ET.Element("g", {"name": self.reaction_id})
+        group = ET.Element('g', {'name': self.reaction_id})
         if value is not None and self.parent.reaction_scale is not None:
             color, size = self.parent.reaction_scale.style(value)
-            # group.set("stroke", str(color))
-            # group.set("stroke-width", f"{size:.1f}")
-            group.set("style", f"stroke: {str(color)}; stroke-width: {size:.1f};")
+            group.set('style', f'stroke: {str(color)}; stroke-width: {size:.1f};')
 
         for segment in self.segments:
             group.append(segment.build(value, direction))
 
-        label = ET.Element("text", {"x": f"{self.label_pos[0]:.1f}", "y": f"{self.label_pos[1]:.1f}"})
-        label.text = self.reaction_id
+        label = ET.Element('text', {'x': f'{self.label_pos[0]:.1f}', 'y': f'{self.label_pos[1]:.1f}'})
+        label.text = self.label
         group.append(label)
         return group
 
@@ -365,14 +365,14 @@ class MapSegment:
     """A single connection tying a metabolite to a reaction, or nodes within a reaction."""
 
     # This arrowhead is sized for a stroke-width of 10.
-    ARROWHEAD = ET.Element("path", {"d": "M 0 -10 L 13 0 L 0 10 Z", "transform": "translate(-3)"})
+    ARROWHEAD = ET.Element('path', {'d': 'M 0 -10 L 13 0 L 0 10 Z', 'transform': 'translate(-3)'})
 
     def __init__(self, reaction: MapReaction, segment_json, all_nodes: Mapping[str, MapNode]):
         self.reaction = reaction
-        self.from_node = all_nodes[segment_json["from_node_id"]]
-        self.to_node = all_nodes[segment_json["to_node_id"]]
-        self.b1 = (segment_json["b1"]["x"], segment_json["b1"]["y"]) if segment_json["b1"] else None
-        self.b2 = (segment_json["b2"]["x"], segment_json["b2"]["y"]) if segment_json["b2"] else None
+        self.from_node = all_nodes[segment_json['from_node_id']]
+        self.to_node = all_nodes[segment_json['to_node_id']]
+        self.b1 = (segment_json['b1']['x'], segment_json['b1']['y']) if segment_json['b1'] else None
+        self.b2 = (segment_json['b2']['x'], segment_json['b2']['y']) if segment_json['b2'] else None
 
         # Some maps swap whether a metabolite node is "from" or "to". Swap if necessary, to standardize on "to".
         if isinstance(self.from_node, MapMetabolite):
@@ -389,15 +389,15 @@ class MapSegment:
 
     def arrowhead(self, x: float, y: float, angle: float, value: float) -> ET.Element:
         """Manually define an arrowhead glyph at the specified position and angle."""
-        arrowhead = ET.Element("g",
-                               {"class": "arrowhead",
-                                "transform": f"translate({x:.1f}, {y:.1f}) rotate({angle:.0f})"})
+        arrowhead = ET.Element('g',
+                               {'class': 'arrowhead',
+                                'transform': f'translate({x:.1f}, {y:.1f}) rotate({angle:.0f})'})
         arrowhead.append(MapSegment.ARROWHEAD)
         if value is not None and self.reaction.parent.reaction_scale is not None:
             color, size = self.reaction.parent.reaction_scale.style(value)
-            arrowhead.set("transform", arrowhead.get("transform") + f" scale({size / 10:.1f})")
+            arrowhead.set('transform', arrowhead.get('transform') + f' scale({size / 10:.1f})')
             # Note setting the style attribute takes precedence over CSS, where setting fill directly does not.
-            arrowhead.set("style", f"fill: {str(color)}")
+            arrowhead.set('style', f'fill: {str(color)}')
         return arrowhead
 
     def build(self, value: float, direction: float) -> ET.Element:
@@ -406,7 +406,7 @@ class MapSegment:
 
         if self.metabolite_id is None:
             # Just a connector between "midmarker" and "multimarker". Uae a <path> so css finds it.
-            return ET.Element("path", {"d": f"M {start[0]:.1f} {start[1]:.1f} L {end[0]:.1f} {end[1]:.1f}"})
+            return ET.Element('path', {'d': f'M {start[0]:.1f} {start[1]:.1f} L {end[0]:.1f} {end[1]:.1f}'})
         # else...
 
         has_arrow = False
@@ -431,15 +431,15 @@ class MapSegment:
         end = (approach[0] + dx * ratio, approach[1] + dy * ratio)
 
         if self.b1 and self.b2:
-            arc = ET.Element("path", {
-                "d": f"M {start[0]:.1f} {start[1]:.1f} C {self.b1[0]:.1f} {self.b1[1]:.1f}" +
-                     f" {self.b2[0]:.1f} {self.b2[1]:.1f} {end[0]:.1f} {end[1]:.1f}"})
+            arc = ET.Element('path', {
+                'd': f'M {start[0]:.1f} {start[1]:.1f} C {self.b1[0]:.1f} {self.b1[1]:.1f}' +
+                     f' {self.b2[0]:.1f} {self.b2[1]:.1f} {end[0]:.1f} {end[1]:.1f}'})
         else:
-            arc = ET.Element("path", {"d": f"M {start[0]:.1f} {start[1]:.1f} L {end[0]:.1f} {end[1]:.1f}"})
+            arc = ET.Element('path', {'d': f'M {start[0]:.1f} {start[1]:.1f} L {end[0]:.1f} {end[1]:.1f}'})
 
         if has_arrow:
             # Previous attempts with either <marker> or <symbol> failed to behave as needed. Just make it explicit.
-            _arc = ET.Element("g")
+            _arc = ET.Element('g')
             _arc.append(arc)
             _arc.append(self.arrowhead(end[0], end[1], math.atan2(dy, dx) * 180 / math.pi, value))
             arc = _arc
@@ -448,12 +448,12 @@ class MapSegment:
         if count == 1:
             return arc
         else:
-            group = ET.Element("g")
+            group = ET.Element('g')
             group.append(arc)
 
             label_x = end[0] + dy / l * 24
             label_y = end[1] - dx / l * 24
-            stoich_label = ET.Element("text", {"class": "stoich", "x": f"{label_x:.1f}", "y": f"{label_y:.1f}"})
+            stoich_label = ET.Element('text', {'class': 'stoich', 'x': f'{label_x:.1f}', 'y': f'{label_y:.1f}'})
             stoich_label.text = str(count)
             group.append(stoich_label)
             return group
