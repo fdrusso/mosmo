@@ -14,12 +14,50 @@ are 'elementary' with respect to those metabolites (see references for full defi
 An additional constraint is that any reaction may be designated irreversible, meaning it may not be used with a negative
 coefficient in any mode.
 """
-from typing import Iterable, Tuple
+from dataclasses import dataclass
+from functools import cached_property
+from typing import Iterable, List, Mapping, Optional, Set
 
 import numpy as np
 
+from mosmo.model import Molecule, Reaction, Pathway
 
-def sort_tableau(tableau, j):
+
+@dataclass
+class Mode:
+    """Describes a reaction mode, i.e. a linear combination of reactions."""
+    coefficients: Mapping[Reaction, int]
+    reversible: bool
+
+    @cached_property
+    def description(self):
+        parts = []
+        for reaction, k in self.coefficients.items():
+            if not k:
+                continue
+
+            if k < 0:
+                parts.append('-')
+            elif len(parts) > 0:
+                parts.append('+')
+
+            if abs(k) != 1:
+                parts.append(str(abs(k)))
+
+            parts.append(reaction.label)
+
+        return ' '.join(parts)
+
+    @cached_property
+    def net_reaction(self):
+        """A single Reaction describing the net effect of the linear combination represented by this mode."""
+        return sum(rxn * k for rxn, k in self.coefficients.items())
+
+    def __repr__(self):
+        return self.description
+
+
+def _sort_tableau(tableau, j):
     """Partitions the tableau into rows that are currently elementary for column j, and those that are not."""
     elementary = []
     pending = []
@@ -31,7 +69,7 @@ def sort_tableau(tableau, j):
     return elementary, pending
 
 
-def generate_candidates(pending, j):
+def _generate_candidates(pending, j):
     """Yields candidate pairs of rows that may be combined validly into a new row that eliminates metabolite j."""
     for i, (row_i, reversible_i, used_i) in enumerate(pending):
         for row_m, reversible_m, used_m in pending[i + 1:]:
@@ -46,7 +84,7 @@ def generate_candidates(pending, j):
                 yield row_i, row_m, False, used_i | used_m
 
 
-def merge_modes(row_i, row_m, reversible, j, num_rxns):
+def _merge_modes(row_i, row_m, reversible, j, num_rxns):
     """Performs the work of combining a pair of rows into a new row that eliminates metabolite j."""
     # All integer arithmetic.
     multiple = int(np.lcm(row_i[j], row_m[j]))
@@ -71,7 +109,7 @@ def merge_modes(row_i, row_m, reversible, j, num_rxns):
     return row, reversible, used
 
 
-def process_candidates(candidates, elementary, j, num_rxns):
+def _process_candidates(candidates, elementary, j, num_rxns):
     """Decide which pairs of candidate rows to merge, and generate a new tableau."""
     # Every candidate must be compared against all current elementary modes, based on the non-subset zeros test.
     # Successful candidates extend the list of elementary modes that later candidates must be compared to.
@@ -84,43 +122,64 @@ def process_candidates(candidates, elementary, j, num_rxns):
 
         # If the candidate survived, keep it. Other candidates must now compare against this new mode too.
         if passing:
-            elementary.append(merge_modes(row_i, row_m, reversible, j, num_rxns))
+            elementary.append(_merge_modes(row_i, row_m, reversible, j, num_rxns))
 
     return elementary
 
 
-def elementary_modes(s_matrix: np.ndarray, reversibility: Iterable[bool]) -> Tuple[np.ndarray, Iterable[bool]]:
+def elementary_modes(
+        pathway: Pathway,
+        intermediates: Set[Molecule],
+        reversibility: Optional[Mapping[Reaction, bool]] = None,
+        flipped: Optional[Iterable[Reaction]] = (),
+) -> List[Mode]:
     """Main entry point for elementary mode algorithm.
 
     Args:
-        s_matrix: Stoichiometry matrix of the system, filtered to include rows for internal metabolites only. Must
-            include only integer stoichiometry coefficients.
-        reversibility: Indicates reversibility of each reaction (column) in s_matrix.
+        pathway: The pathway of interest.
+        intermediates: Molecules in `pathway` to be treated as intermediates, i.e. at steady state
+            in any elementary mode of the pathway.
+        reversibility: (optional) overrides intrinsic reversibility of any reaction.
+        flipped: (optional) flips the direction of selected reactions, particularly if we need to treat them
+            as irreversible in the opposite direction
 
     Returns:
-        modes: Matrix defining each elementary mode (column) as a linear combination of reactions (rows). Rows for
-            irreversible reactions contain only non-negative coefficients.
-        reversibility: Indicates reversibility of elementary mode. Reversible modes must be composed entirely of
-            reversible reactions.
+        The list of elementary modes of the pathway, as defined in
+        [Schuster _et al_ (2000)](https://www.nature.com/articles/nbt0300_326).
     """
+    i_intermediates = [met in intermediates for met in pathway.molecules]
+    s_matrix = pathway.s_matrix[i_intermediates].astype(int)
+    num_mets, num_rxns = s_matrix.shape
+
+    reversibility = reversibility or {}
+    rxn_direction = np.ones(num_rxns, dtype=int)
+    for rxn in flipped:
+        rxn_direction[pathway.reactions.index_of(rxn)] = -1
+    rows = np.concatenate([(s_matrix * rxn_direction).T, np.eye(num_rxns, dtype=int)], axis=1)
+
     # Internally we do not use an actual numpy matrix for the tableau, but rather a list of 1d rows with the same
     # structure. Each row has associated reversibility, plus the set of indices of all reactions included in that
     # mode. This is the complement of the set designated S(m_i) by Schuster et al.
-    num_mets, num_rxns = s_matrix.shape
-    modes = np.eye(num_rxns, dtype=int)
     tableau = []
-    for i, (reaction, mode, reversible) in enumerate(zip(s_matrix.astype(int).T, modes, reversibility)):
-        tableau.append((np.concatenate([reaction, mode]), reversible, {i}))
+    for i, (rxn, row) in enumerate(zip(pathway.reactions, rows)):
+        reversible = reversibility.get(rxn, rxn.reversible)
+        tableau.append((row, reversible, {i}))
 
+    # After iteration j, all columns up to j will be at steady state (i.e. 0), given the linear combination
+    # of reactions represented in the right-hand num_rxns columns.
     for j in range(num_mets):
-        elementary, pending = sort_tableau(tableau, j)
-        candidates = generate_candidates(pending, j)
-        tableau = process_candidates(candidates, elementary, j, num_rxns)
+        elementary, pending = _sort_tableau(tableau, j)
+        candidates = _generate_candidates(pending, j)
+        tableau = _process_candidates(candidates, elementary, j, num_rxns)
 
     modes = []
-    rev = []
-    for mode, reversible, zeros in tableau:
-        modes.append(mode[-num_rxns:])
-        rev.append(reversible)
+    for row, reversible, _ in tableau:
+        coefficients = row[-num_rxns:] * rxn_direction
+        modes.append(
+            Mode(
+                coefficients={rxn: int(k) for rxn, k in zip(pathway.reactions, coefficients) if k != 0},
+                reversible=reversible
+            )
+        )
 
-    return np.array(modes, dtype=int).T, rev
+    return modes
