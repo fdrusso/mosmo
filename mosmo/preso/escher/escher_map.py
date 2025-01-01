@@ -176,15 +176,27 @@ def GaBu(minval=0, maxval=100):
     return Scale({minval: ('#eeeeee', 5), maxval: ('#1f77b4', 20)}, use_abs=True)
 
 
+@dataclass
+class Rendering:
+    """Wrapper to identify output as an SVG rendering to IPython, or fall back to the SVG string."""
+    svg: str
+
+    def __repr__(self):
+        return self.svg
+
+    def _repr_svg_(self):
+        return self.svg
+
+
 class EscherMap:
     """Renders a map file produced by the Escher pathway tool, http://escher.github.io/.
 
     Usage:
         diagram1 = EscherMap(json.loads(<mapfile>)))
-        IPython.display.SVG(diagram1.draw(width='20cm'))
+        display(diagram1.draw(width='20cm'))
 
         diagram2 = EscherMap(json.loads(<mapfile>)), reaction_scale=GaBuRd(midval=1.5, maxval=10))
-        IPython.display.SVG(diagram2.draw(width='800px', reaction_data=<data>))
+        display(diagram2.draw(width='800px', reaction_data=<data>))
 
     For greater control, use build(), which returns a standard SVG document as an ET.Element. Users with web development
     or CSS experience can manipulate this to fine-tune its appearance. This can be rendered to a string, or saved to a
@@ -193,12 +205,8 @@ class EscherMap:
 
     def __init__(self,
                  map_json,
-                 width: Optional[Union[str, float, int]] = None,
-                 height: Optional[Union[str, float, int]] = None,
                  reaction_scale: Optional[Scale] = None,
                  metabolite_scale: Optional[Scale] = None):
-        self.width = width
-        self.height = height
         self.reaction_scale = reaction_scale
         self.metabolite_scale = metabolite_scale
 
@@ -222,6 +230,8 @@ class EscherMap:
 
     def build(
             self,
+            width: Optional[Union[str, float, int]] = '100%',
+            height: Optional[Union[str, float, int]] = '100%',
             metabolite_data: Optional[Mapping[str, float]] = None,
             reaction_data: Optional[Mapping[str, float]] = None,
             reaction_direction: Optional[Mapping[str, float]] = None) -> ET.Element:
@@ -235,8 +245,8 @@ class EscherMap:
             metabolite_data = {}
 
         svg = ET.Element('svg',
-                         {'width': str(self.width),
-                          'height': str(self.height),
+                         {'width': str(width),
+                          'height': str(height),
                           'viewBox': f'{self.origin[0]:.1f} {self.origin[1]:.1f} {self.size[0]:.1f} {self.size[1]:.1f}'}
                          )
         defs = ET.Element('defs')
@@ -280,15 +290,19 @@ class EscherMap:
         return svg
 
     def draw(self,
+             width: Optional[Union[str, float, int]] = '100%',
+             height: Optional[Union[str, float, int]] = '100%',
              metabolite_data: Optional[Mapping[str, float]] = None,
              reaction_data: Optional[Mapping[str, float]] = None,
-             reaction_direction: Optional[Mapping[str, float]] = None) -> str:
+             reaction_direction: Optional[Mapping[str, float]] = None) -> Rendering:
         """Renders a diagram with optional overlays of metabolite and/or reaction data, as an SVG string."""
         svg = self.build(
+            width=width,
+            height=height,
             metabolite_data=metabolite_data,
             reaction_data=reaction_data,
             reaction_direction=reaction_direction)
-        return ET.tostring(svg, encoding='unicode')
+        return Rendering(ET.tostring(svg, encoding='unicode'))
 
 
 class MapNode:
