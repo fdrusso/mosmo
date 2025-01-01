@@ -63,7 +63,7 @@ class TestSession:
         with session.unlock(TEST):
             session.put(TEST, obj)
 
-        assert session.deref(obj.ref()) is obj
+        assert session.deref(obj.ref) is obj
 
     def test_DerefStr(self):
         """The KB can dereference an xref in string form."""
@@ -72,7 +72,7 @@ class TestSession:
         with session.unlock(TEST):
             session.put(TEST, obj)
 
-        assert session.deref(str(obj.ref())) is obj
+        assert session.deref(str(obj.ref)) is obj
 
     def test_ShortcutAccess(self):
         """Tests the KB's "shortcut" access pattern."""

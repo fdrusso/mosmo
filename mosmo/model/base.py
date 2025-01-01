@@ -104,13 +104,14 @@ class KbEntry:
     aka: Optional[List[str]] = None
     xrefs: Optional[Set[DbXref]] = None
 
+    @property
     def ref(self) -> DbXref:
         """A DbXref that refers to this KbEntry."""
         return DbXref(id=self.id, db=self.db)
 
     def url(self):
         if self.db:
-            return self.ref().url(type(self))
+            return self.ref.url(type(self))
         else:
             return None
 
@@ -145,7 +146,7 @@ class KbEntry:
         This function delegates to _data_items, which can be overridden by subclasses to add more information.
         """
 
-        lines = [str(self.ref())]
+        lines = [str(self.ref)]
         items = self._data_items()
         label_width = max(len(label) for label in items.keys())
         item_width = max_width - label_width - len(sep)

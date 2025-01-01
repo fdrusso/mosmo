@@ -44,7 +44,7 @@ def _as_xref(q: Union[DbXref, KbEntry, str]) -> DbXref:
     elif isinstance(q, str):
         return DbXref.from_str(q)
     elif isinstance(q, KbEntry):
-        return q.ref()
+        return q.ref
     else:
         raise TypeError(f"{q} cannot be converted to DbXref.")
 
@@ -317,7 +317,7 @@ class XrefCodec(codecs.Codec):
         self.clazz = clazz
 
     def encode(self, entry):
-        return self.delegate.encode(entry.ref())
+        return self.delegate.encode(entry.ref)
 
     def decode(self, doc):
         xref = self.delegate.decode(doc)
