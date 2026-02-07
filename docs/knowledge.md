@@ -68,7 +68,7 @@ around only id strings, forcing an additional lookup before using any actual inf
 
 ### Cross-references and URLs
 The concept of a cross-reference (or xref) is universal across the bioinformatics knowledge ecosystem, arising from
-overlap in the various datasources. For instance, RHEA:11816, KEGG:R00771, and METACYC:PGLUCISOM-RXN all describe
+overlap in the various datasources. For instance, RHEA:11816, KEGG:R00771, and ECOCYC:PGLUCISOM-RXN all describe
 (essentially) the same reaction, as do EC:5.3.1.9 and GO:0004347. Note however that "essentially" is important here,
 given differences in editorial standards across these sources. In general, each datasource does attempt to maintain
 useful cross-references to others, but we cannot always expect consistency in what each source considers to be
@@ -87,7 +87,7 @@ produces:
 EC:5.3.1.9 https://enzyme.expasy.org/EC/5.3.1.9
 GO:0004347 http://amigo.geneontology.org/amigo/term/GO:0004347
 KEGG:R00771 https://www.genome.jp/entry/R00771
-METACYC:PGLUCISOM-RXN https://metacyc.org/META/NEW-IMAGE?object=PGLUCISOM-RXN
+ECOCYC:PGLUCISOM-RXN https://metacyc.org/META/NEW-IMAGE?object=PGLUCISOM-RXN
 ```
 
 While `Datasource`, `KbEntry`, and `DbXref` are all inspired by the world of bioinformatics, they are actually
@@ -96,6 +96,21 @@ airline schedules, or pretty much anything. Next we will discuss classes that ar
 molecular systems.
 
 ### Molecules
+Molecules are the chemical / physical entities that participate in a molecular system. The definition of 'molecule'
+used here encompasses the high-school chemistry definition, as a covalently bound collection of atoms, and extends it
+to include any entity that behaves as a particle on the microscopic level. This includes ions, such as a proton or
+sodium ion, as well as molecular complexes such as insulin or ATP:Mg++. Public datasources that define molecules
+include [ChEBI](https://www.ebi.ac.uk/chebi/), [KEGG](https://www.genome.jp/kegg/compound), and
+[EcoCyc](https://ecocyc.org/).
+
+The `Molecule` class extends `KbEntry`, and adds the following attributes:
+- formula: the chemical formula, such as H2O or C6H12O6
+- mass: the atomic mass
+- charge: the electric charge of the molecule
+- inchi: a standardized string representation of the chemical structure of the molecule
+
+
+
 ### Reactions
 ### Pathways
 
