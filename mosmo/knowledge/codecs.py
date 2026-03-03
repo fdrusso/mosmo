@@ -7,7 +7,7 @@ the system to infer them. This seems a manageable constraint.
 """
 import abc
 from collections import ChainMap
-from typing import Callable, Iterable, Mapping, Optional, Type
+from typing import Any, Callable, Iterable, Mapping, Optional, Type
 
 from mosmo.model import Datasource, DS, DbXref, KbEntry
 
@@ -77,6 +77,19 @@ class MappingCodec(Codec):
         return self.mapping_type({self.key_codec.decode(k): self.value_codec.decode(v) for k, v in doc})
 
 
+class TupleCodec(Codec):
+    """Encodes/decodes a python tuple to a json-compatible tuple."""
+
+    def __init__(self, codecs: Iterable[Codec] = None):
+        self.codecs = codecs
+
+    def encode(self, tup):
+        return tuple(codec.encode(item) for codec, item in zip(self.codecs, tup))
+
+    def decode(self, doc):
+        return tuple(codec.decode(item) for codec, item in zip(self.codecs, doc))
+
+
 class TableLookupCodec(Codec):
     """Encodes an object by key; decodes by looking up that key in a table."""
 
@@ -141,7 +154,7 @@ class ObjectCodec(Codec):
 
 
 # Pre-defined codecs for model.core types. This dict may be extended by other imported packages.
-CODECS = {
+CODECS: Mapping[Any, Codec] = {
     Datasource: TableLookupCodec(DS),
 }
 CODECS[DbXref] = ObjectCodec(
@@ -160,5 +173,6 @@ CODECS[KbEntry] = ObjectCodec(
         'description': AS_IS,
         'aka': AS_IS,
         'xrefs': ListCodec(item_codec=CODECS[DbXref], list_type=set),
+        'links': ListCodec(item_codec=TupleCodec((AS_IS, CODECS[DbXref]))),
     },
     rename={"id": "_id"})

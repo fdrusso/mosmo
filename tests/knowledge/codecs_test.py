@@ -1,7 +1,7 @@
 """Tests for mosmo.knowledge.codecs."""
 import json
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Tuple
 
 from mosmo.knowledge import codecs
 
@@ -31,17 +31,19 @@ class _Extended(_Base):
     _list: Optional[List] = None
     _set: Optional[Set] = None
     _dict: Optional[Dict] = None
+    _tuple: Optional[Tuple[str, int, _Base]] = None
 
     def __eq__(self, other):
         return (
                 super().__eq__(other)
                 and other._list == self._list
                 and other._set == self._set
-                and other._dict ==self._dict
+                and other._dict == self._dict
+                and other._tuple == self._tuple
         )
 
     def __hash__(self):
-        return super().__hash__() + hash((self._list, self._set, self._dict))
+        return super().__hash__() + hash((self._list, self._set, self._dict, self._tuple))
 
 
 BASE_CODEC = codecs.ObjectCodec(
@@ -60,7 +62,8 @@ EXTENDED_CODEC = codecs.ObjectCodec(
     codec_map= {
         '_list': codecs.ListCodec(item_codec=BASE_CODEC),
         '_set': codecs.ListCodec(item_codec=BASE_CODEC, list_type=set),
-        '_dict': codecs.MappingCodec(key_codec=codecs.AS_IS, value_codec=BASE_CODEC)
+        '_dict': codecs.MappingCodec(key_codec=codecs.AS_IS, value_codec=BASE_CODEC),
+        '_tuple': codecs.TupleCodec((codecs.AS_IS, codecs.AS_IS, BASE_CODEC)),
     }
 )
 
@@ -130,6 +133,7 @@ class TestCodec:
             _list=[_Base(_int=17), _Base(_float=2.71828), _Base(_str='Hello World')],
             _set={_Base(_str='foo'), _Base(_str='bar'), _Base(_int=-1)},
             _dict={'seventeen': _Base(_int=17), 'e': _Base(_float=2.71828), 'greeting': _Base(_str='Hello World')},
+            _tuple=('obfuscation', 41, _Base(_str='Hello World')),
         )
         codec = EXTENDED_CODEC
         enc = json.dumps(codec.encode(orig))

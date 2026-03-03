@@ -36,7 +36,7 @@ def configure_kb(uri: str = 'mongodb://127.0.0.1:27017'):
             'formula': AS_IS,
             'mass': AS_IS,
             'charge': AS_IS,
-            'inchi': AS_IS,
+            'structure': AS_IS,
             'variations': ListCodec(item_codec=codex[Variation]),
             'canonical_form': codex[Specialization],
             'default_form': codex[Specialization],

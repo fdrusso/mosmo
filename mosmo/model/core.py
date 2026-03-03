@@ -41,8 +41,8 @@ class Molecule(KbEntry):
     charge: Optional[int] = None
     """Electric charge of the molecule."""
 
-    inchi: Optional[str] = None
-    """InChI string describing the structure (https://en.wikipedia.org/wiki/International_Chemical_Identifier)."""
+    structure: Optional[str] = None
+    """SMILES string describing the structure, if available."""
 
     variations: Optional[List[Variation]] = None
     """Defines the ways in which molecules of this type may vary.
@@ -67,7 +67,7 @@ class Molecule(KbEntry):
             'formula': self.formula,
             'mass': self.mass,
             'charge': self.charge,
-            'inchi': self.inchi,
+            'structure': self.structure,
         }
         if self.canonical_form:
             items['canonical_form'] = self.canonical_form.parent_id

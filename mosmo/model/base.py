@@ -1,7 +1,7 @@
 """Base classes with universal attributes for Knowledge Base entries."""
 import textwrap
 from dataclasses import dataclass, field
-from typing import List, Mapping, Optional, Set, Type
+from typing import List, Mapping, Optional, Set, Type, Tuple
 
 
 @dataclass(frozen=True, eq=True, order=True)
@@ -93,6 +93,7 @@ class KbEntry:
         description: Full description, suitable for a view focused on one entry at a time.
         aka: Alternative names of the entry.
         xrefs: Cross-references to (essentially) the same entry in other databases.
+        links: Semantically loose named relationships to other entries.
 
     All attributes are optional on init, though id and db in particular are important for most functionality.
     """
@@ -103,6 +104,7 @@ class KbEntry:
     description: Optional[str] = None
     aka: Optional[List[str]] = None
     xrefs: Optional[Set[DbXref]] = None
+    links: Optional[List[Tuple[str, DbXref]]] = None
 
     @property
     def ref(self) -> DbXref:
@@ -170,5 +172,6 @@ class KbEntry:
             'shorthand': self.shorthand,
             'aka': self.aka,
             'description': self.description,
-            'xrefs': sorted(str(xref) for xref in self.xrefs) if self.xrefs else None
+            'xrefs': sorted(str(xref) for xref in self.xrefs) if self.xrefs else None,
+            'links': [(name, str(xref)) for name, xref in self.links] if self.links else None,
         }
