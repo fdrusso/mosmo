@@ -43,6 +43,17 @@ DS.define(Datasource(
 ))
 
 DS.define(Datasource(
+    id="ECMDB",
+    name="E. coli Metabolome Database",
+    home="https://ecmdb.ca/",
+    urlpat= {
+        Molecule: "https://ecmdb.ca/compounds/{id}",
+        Reaction: "https://ecmdb.ca/reactions/{id}",
+        Pathway: "https://ecmdb.ca/pathways/{id}",
+    }
+))
+
+DS.define(Datasource(
     id="ECOCYC",
     name="EcoCyc: Encyclopedia of E. coli Genes and Metabolism",
     home="https://ecocyc.org/",
