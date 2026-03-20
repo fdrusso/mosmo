@@ -90,7 +90,7 @@ class TupleCodec(Codec):
         return tuple(codec.decode(item) for codec, item in zip(self.codecs, doc))
 
 
-class TableLookupCodec(Codec):
+class LookupCodec(Codec):
     """Encodes an object by key; decodes by looking up that key in a table."""
 
     def __init__(self, lookup, keyname="id"):
@@ -98,10 +98,26 @@ class TableLookupCodec(Codec):
         self.keyname = keyname
 
     def encode(self, obj):
-        return obj.__dict__[self.keyname]
+        return getattr(obj, self.keyname)
 
     def decode(self, key):
         return self.lookup.get(key)
+
+
+class ChainLookupCodec(Codec):
+    """Allows for chaining of lookups, by looking up the lookup."""
+
+    def __init__(self, parent: Codec, parentkey="lookup", childkey="id"):
+        self.parent = parent
+        self.parentkey = parentkey
+        self.childkey = childkey
+
+    def encode(self, obj):
+        return [self.parent.encode(getattr(obj, self.parentkey)), getattr(obj, self.childkey)]
+
+    def decode(self, doc):
+        lookup = self.parent.decode(doc[0])
+        return lookup.get(doc[1])
 
 
 class ObjectCodec(Codec):
@@ -155,7 +171,7 @@ class ObjectCodec(Codec):
 
 # Pre-defined codecs for model.core types. This dict may be extended by other imported packages.
 CODECS: Mapping[Any, Codec] = {
-    Datasource: TableLookupCodec(DS),
+    Datasource: LookupCodec(DS),
 }
 CODECS[DbXref] = ObjectCodec(
     DbXref,

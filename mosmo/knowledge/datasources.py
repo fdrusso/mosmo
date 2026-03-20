@@ -2,13 +2,13 @@
 from mosmo.model import Datasource, DS, KbEntry, Molecule, Reaction, Pathway
 
 
-DS.define(Datasource(
+DS.register(Datasource(
     id="CANON",
     name="Curated Knowledge Base",
     home="https://github.com/fdrusso/mosmo"
 ))
 
-DS.define(Datasource(
+DS.register(Datasource(
     id="BIGG",
     name="BiGG Models",
     home="http://bigg.ucsd.edu/",
@@ -18,13 +18,13 @@ DS.define(Datasource(
     }
 ))
 
-DS.define(Datasource(
+DS.register(Datasource(
     id="CAS",
     name="Chemical Abstracts Service",
     home="https://www.cas.org/cas-data/cas-registry"
 ))
 
-DS.define(Datasource(
+DS.register(Datasource(
     id="CHEBI",
     name="Chemical Entities of Biological Interest (ChEBI)",
     home="https://www.ebi.ac.uk/chebi/",
@@ -33,7 +33,7 @@ DS.define(Datasource(
     }
 ))
 
-DS.define(Datasource(
+DS.register(Datasource(
     id="EC",
     name="Enzyme Commission",
     home="https://enzyme.expasy.org/",
@@ -42,7 +42,7 @@ DS.define(Datasource(
     }
 ))
 
-DS.define(Datasource(
+DS.register(Datasource(
     id="ECMDB",
     name="E. coli Metabolome Database",
     home="https://ecmdb.ca/",
@@ -53,7 +53,7 @@ DS.define(Datasource(
     }
 ))
 
-DS.define(Datasource(
+DS.register(Datasource(
     id="ECOCYC",
     name="EcoCyc: Encyclopedia of E. coli Genes and Metabolism",
     home="https://ecocyc.org/",
@@ -64,7 +64,7 @@ DS.define(Datasource(
     }
 ))
 
-DS.define(Datasource(
+DS.register(Datasource(
     id="GO",
     name="Gene Ontology",
     home="http://geneontology.org/",
@@ -73,7 +73,7 @@ DS.define(Datasource(
     }
 ))
 
-DS.define(Datasource(
+DS.register(Datasource(
     id="KEGG",
     name="Kyoto Encyclopedia of Genes and Genomes",
     home="https://www.genome.jp/kegg/",
@@ -84,7 +84,7 @@ DS.define(Datasource(
     }
 ))
 
-DS.define(Datasource(
+DS.register(Datasource(
     id="LINCS",
     name="The Library of Integrated Network-Based Cellular Signatures (LINCS)",
     home="https://lincsportal.ccs.miami.edu/SmallMolecules/",
@@ -93,7 +93,7 @@ DS.define(Datasource(
     }
 ))
 
-DS.define(Datasource(
+DS.register(Datasource(
     id="MACIE",
     name="Mechanism Annotation and Classification in Enzymes",
     home="https://www.ebi.ac.uk/thornton-srv/m-csa/",
@@ -102,7 +102,7 @@ DS.define(Datasource(
     }
 ))
 
-DS.define(Datasource(
+DS.register(Datasource(
     id="METACYC",
     name="MetaCyc: Metabolic Pathways From all Domains of Life",
     home="https://metacyc.org/",
@@ -113,7 +113,7 @@ DS.define(Datasource(
     }
 ))
 
-DS.define(Datasource(
+DS.register(Datasource(
     id="METANETX",
     name="MetaNetX",
     home="https://www.metanetx.org/",
@@ -123,7 +123,7 @@ DS.define(Datasource(
     }
 ))
 
-DS.define(Datasource(
+DS.register(Datasource(
     id="REACT",
     name="Reactome",
     home="https://reactome.org/",
@@ -132,7 +132,7 @@ DS.define(Datasource(
     }
 ))
 
-DS.define(Datasource(
+DS.register(Datasource(
     id="RHEA",
     name="Rhea, the reaction knowledgebase",
     home="https://www.rhea-db.org/",
@@ -141,7 +141,7 @@ DS.define(Datasource(
     }
 ))
 
-DS.define(Datasource(
+DS.register(Datasource(
     id="WIKI",
     name="Wikipedia",
     home="https://en.wikipedia.org/",

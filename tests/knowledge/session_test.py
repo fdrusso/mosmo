@@ -10,8 +10,9 @@ from mosmo.knowledge.codecs import CODECS
 from mosmo.knowledge.session import Session, Dataset
 from mosmo.model import KbEntry, DbXref, DS
 
-TEST = Dataset("TEST", DS.get("TEST"), KbEntry, "test", "test", codec=CODECS[KbEntry])
-TEST_CANON = Dataset("CANON", DS.get("CANON"), KbEntry, "test", "canon", codec=CODECS[KbEntry], canonical=True)
+TEST = Dataset("TEST", DS.get("TEST", create=True), KbEntry, "test", "test", codec=CODECS[KbEntry])
+TEST_CANON = Dataset(
+    "CANON", DS.get("CANON", create=True), KbEntry, "test", "canon", codec=CODECS[KbEntry], canonical=True)
 
 
 class TestSession:

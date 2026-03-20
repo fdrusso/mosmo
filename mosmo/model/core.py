@@ -1,32 +1,56 @@
 """Core classes defining objects and concepts used to construct models of molecular systems."""
 import collections
 from dataclasses import dataclass
-from typing import List, Mapping, Optional, Tuple
+from typing import Iterable, Mapping, Optional, Tuple, Union
 
-from .base import KbEntry
-
-
-@dataclass
-class Variation:
-    """Describes the nature of a dimension of variation, as a choice among a list of named forms."""
-    name: str
-    form_names: List[str]
+from .base import DbXref, KbEntry, Registry
 
 
-@dataclass
-class Specialization:
-    """Specialization of the parent, or generalization of the child, identified by a set of form names.
+class VariableFeature:
+    """Describe a point of variation on a molecule, as a choice among variant forms.
 
-    Variation and Specialization extend the is_a relationship used in many ontologies, by adding
-    addressability. That is, we don't just declare that <child> is_a <parent>, but that <child> is
-    _the_ [foo, bar] form of the parent. As a practical example we may have an entry in our KB for
-    glucose. We also know that glucose has D and L stereoisomers, and that because of ring-chain
-    tautamerism, a given molecule may be in the open-chain, α, or β configurations. So, glucose is
-    the parent concept, and β-D-glucose is the [D, β] form of glucose.
+    Features and variants extend the is_a relationship used in many ontologies, by adding addressability. We don't just
+    declare that <child> is_a <parent>, but that <child> is _the_ [foo, bar] form of the parent. As a practical example
+    we may have an entry in our KB for glucose. We also know that glucose has D and L stereoisomers, and that because
+    of ring-chain tautomerism, a given molecule may be in the open-chain, α, or β configurations. So, glucose is the
+    general parent, and β-D-glucose is the [D, β] form of glucose.
     """
-    parent_id: str
-    form: Tuple[str]
-    child_id: str
+
+    class Variant:
+        """Encapsulates a single variant of a VariableFeature."""
+
+        def __init__(self, feature: "VariableFeature", label: str):
+            self.feature = feature
+            self.label = label
+
+        def __repr__(self):
+            return f"{self.feature.label}.{self.label}"
+
+    def __init__(self, label, variants: Iterable[Union[str, Tuple[str, str]]]):
+        self.label = label
+        self._variants = {}
+        for arg in variants:
+            if isinstance(arg, tuple):
+                vlabel, vattr = arg
+            else:
+                vlabel = arg
+                vattr = arg.upper()
+
+            variant = VariableFeature.Variant(self, vlabel)
+            self._variants[vlabel] = variant
+            setattr(self, vattr, variant)
+
+    def get(self, vlabel: str):
+        """Looks up a variant by its label."""
+        return self._variants.get(vlabel)
+
+    def __iter__(self):
+        return iter(self._variants.values())
+
+    def __repr__(self):
+        return f"<{self.__class__.__name__}>{self.label}"
+
+FEATURE_TYPES = Registry(VariableFeature, 'label')
 
 
 @dataclass
@@ -44,18 +68,20 @@ class Molecule(KbEntry):
     structure: Optional[str] = None
     """SMILES string describing the structure, if available."""
 
-    variations: Optional[List[Variation]] = None
-    """Defines the ways in which molecules of this type may vary.
-    
-    Many molecules can vary in protonation state, conformation, modification at specific sites, etc.
-    Each Variation defines one such dimension of variation.
-    """
+    canonical_form: Optional[str] = None
+    """The canonical parent of this molecule."""
 
-    canonical_form: Optional[Specialization] = None
-    """Defines this molecule as a specific form (i.e. this is the child) of some canonical reference form."""
+    form_name: Optional[Tuple] = None
+    """This molecule's relationship to its canonical parent, as a series of feature variants."""
 
-    default_form: Optional[Specialization] = None
-    """For a general molecule, defines a more specific assumed form (i.e. this is the parent).
+    features: Optional[Mapping[str, VariableFeature]] = None
+    """Defines the ways in which molecules of this type may vary."""
+
+    child_forms: Optional[Mapping[Tuple, str]] = None
+    """Keeps track of defined child forms, each identified by a tuple of feature variants."""
+
+    default_form: Optional[str] = None
+    """For a general (canonical) molecule, denotes a more specific assumed form under physiological conditions.
 
     As a specific example, we most often refer simply to ATP. But ATP technically has multiple protonation
     states, with slightly different mass and different charge. For simplicity we continue to refer simply 
@@ -63,16 +89,28 @@ class Molecule(KbEntry):
     """
 
     def _data_items(self):
-        items = super()._data_items() | {
+        def form_name(form_tuple):
+            return f"({', '.join(variant.label for variant in form_tuple or [])})"
+
+        items = dict(super()._data_items())
+        items.update({
             'formula': self.formula,
             'mass': self.mass,
             'charge': self.charge,
             'structure': self.structure,
-        }
+        })
+
         if self.canonical_form:
-            items['canonical_form'] = self.canonical_form.parent_id
+            items['form_info'] = f'{form_name(self.form_name)} form of {self.canonical_form}'
+        if self.features:
+            items['features'] = ', '.join(f'{label}[{feature.label}]' for label, feature in self.features.items())
+        if self.child_forms:
+            child_info = []
+            for form_tuple, child in self.child_forms.items():
+                child_info.append(f'{form_name(form_tuple)}: {child}')
+            items['child_forms'] = child_info
         if self.default_form:
-            items['default_form'] = self.default_form.child_id
+            items['default_form'] = str(self.default_form)
         return items
 
     def __eq__(self, other):
@@ -100,6 +138,7 @@ class Reaction(KbEntry):
     @property
     def equation(self):
         """Human-readable compact summary of the reaction."""
+
         def molecule_term(molecule: Molecule, count: float) -> str:
             if count == 1:
                 return molecule.label
@@ -140,9 +179,9 @@ class Reaction(KbEntry):
         stoichiometry.update(self.stoichiometry)
         stoichiometry.update(other.stoichiometry)
         return Reaction(
-            id = self.id + "+" + other.id,
-            db = None,
-            stoichiometry = {molecule: count for molecule, count in stoichiometry.items() if count != 0},
+            id=self.id + "+" + other.id,
+            db=None,
+            stoichiometry={molecule: count for molecule, count in stoichiometry.items() if count != 0},
         )
 
     __radd__ = __add__
@@ -156,9 +195,9 @@ class Reaction(KbEntry):
             raise ValueError(f"Reaction cannot be multiplied by type [{type(other)}]")
 
         return Reaction(
-            id = str(other) + "*" + self.id,
-            db = None,
-            stoichiometry = {molecule: other * count for molecule, count in self.stoichiometry.items()},
+            id=str(other) + "*" + self.id,
+            db=None,
+            stoichiometry={molecule: other * count for molecule, count in self.stoichiometry.items()},
         )
 
     __rmul__ = __mul__

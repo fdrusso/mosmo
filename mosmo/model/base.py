@@ -1,7 +1,48 @@
 """Base classes with universal attributes for Knowledge Base entries."""
 import textwrap
 from dataclasses import dataclass, field
-from typing import List, Mapping, Optional, Set, Type, Tuple
+from typing import Any, Callable, Generic, List, Mapping, Optional, Set, Type, TypeVar, Tuple
+
+T = TypeVar("T")
+
+
+class Registry(Generic[T]):
+    """A generic registry providing quick access to specified items."""
+
+    def __init__(
+            self,
+            item_type: Type[T],
+            id_attr: str = "id",
+            factory: Optional[Callable[[str], T]] = None
+    ):
+        self._item_type = item_type
+        self.id_attr = id_attr
+        # Default to the class constructor if no factory is provided
+        self._factory = factory or item_type
+        self._items: Mapping[str, T] = {}
+
+    def has(self, id: str) -> bool:
+        """Safe test for existence of a specified item."""
+        return id in self._items
+
+    def register(self, item: T) -> T:
+        """Adds a defined item to the registry."""
+        id = getattr(item, self.id_attr)
+        if id in self._items:
+            if self._items[id] is item:
+                return item
+            else:
+                raise ValueError(f"'{id}' is already defined in this registry.")
+
+        self._items[id] = item
+        setattr(self, id, item)
+        return item
+
+    def get(self, id: str, create: bool = False) -> Optional[T]:
+        """Retrieves a specified item, created on demand if necessary."""
+        if not self.has(id) and create:
+            self.register(self._factory(id))
+        return self._items.get(id)
 
 
 @dataclass(frozen=True, eq=True, order=True)
@@ -16,32 +57,7 @@ class Datasource:
         return f'[{self.id}] {self.name}'
 
 
-class _Registry:
-    """Provides quick access to defined datasources."""
-
-    def __init__(self):
-        self.datasources = {}
-
-    def has(self, id: str) -> bool:
-        """Safe test for datasource existence."""
-        return id in self.datasources
-
-    def define(self, datasource: Datasource) -> Datasource:
-        """Adds a datasource definition to the registry."""
-        if self.has(datasource.id):
-            raise ValueError(f"Datasource {datasource.id} is already defined")
-        self.datasources[datasource.id] = datasource
-        self.__dict__[datasource.id] = datasource
-        return datasource
-
-    def get(self, id: str, create: bool = True) -> Optional[Datasource]:
-        """Retrieves a datasource definition, created on demand if necessary."""
-        if id not in self.datasources and create:
-            self.define(Datasource(id=id))
-        return self.datasources.get(id, None)
-
-
-DS = _Registry()
+DS = Registry(Datasource)
 
 
 @dataclass(frozen=True, eq=True, repr=False)
@@ -165,7 +181,7 @@ class KbEntry:
                     lines.extend(textwrap.wrap(value, width=max_width, initial_indent=indent, subsequent_indent=indent))
         print('\n'.join(lines))
 
-    def _data_items(self):
+    def _data_items(self) -> Mapping[str, Any]:
         """Key-value pairs for data(). Subclasses may override to supply additional items."""
         return {
             'name': self.name,

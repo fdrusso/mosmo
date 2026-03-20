@@ -6,11 +6,10 @@ powerful, and just as maintainable to express the schema directly via python cod
 """
 from pymongo import MongoClient
 
-from mosmo.knowledge.codecs import AS_IS, CODECS, ListCodec, MappingCodec, ObjectCodec
-from mosmo.model import DS, KbEntry, Molecule, Reaction, Pathway, Specialization, Variation
+from mosmo.knowledge.codecs import AS_IS, CODECS, ListCodec, LookupCodec, MappingCodec, ObjectCodec, ChainLookupCodec
+from mosmo.model import DS, KbEntry, Molecule, Reaction, Pathway, DbXref
+from mosmo.knowledge.molfeatures import FEATURE_TYPES
 from .session import Dataset, Session, XrefCodec
-
-import mosmo.knowledge.datasources  # KEEP: Defines standard datasources referred to below.
 
 
 def configure_kb(uri: str = 'mongodb://127.0.0.1:27017'):
@@ -19,15 +18,10 @@ def configure_kb(uri: str = 'mongodb://127.0.0.1:27017'):
 
     # Define codecs for model.core types.
     codex = dict(CODECS)
-    codex[Variation] = ObjectCodec(Variation, codec_map={'name': AS_IS, 'form_names': AS_IS})
 
-    codex[Specialization] = ObjectCodec(
-        Specialization,
-        codec_map={
-            'parent_id': AS_IS,
-            'form': ListCodec(list_type=tuple),
-            'child_id': AS_IS,
-        })
+    feature_codec = LookupCodec(FEATURE_TYPES, 'label')
+    variant_codec = ChainLookupCodec(feature_codec, 'feature', 'label')
+    formname_codec = ListCodec(item_codec=variant_codec, list_type=tuple)
 
     codex[Molecule] = ObjectCodec(
         Molecule,
@@ -37,9 +31,11 @@ def configure_kb(uri: str = 'mongodb://127.0.0.1:27017'):
             'mass': AS_IS,
             'charge': AS_IS,
             'structure': AS_IS,
-            'variations': ListCodec(item_codec=codex[Variation]),
-            'canonical_form': codex[Specialization],
-            'default_form': codex[Specialization],
+            'canonical_form': AS_IS,
+            'form_name': formname_codec,
+            'features': MappingCodec(value_codec=feature_codec),
+            'child_forms': MappingCodec(key_codec=formname_codec),
+            'default_form': AS_IS,
         })
 
     codex[Reaction] = ObjectCodec(

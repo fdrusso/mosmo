@@ -1,1 +1,1 @@
-from . import datasources
+from . import datasources, molfeatures
